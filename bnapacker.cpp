@@ -39,14 +39,13 @@ void padStream(std::ofstream &stream, size_t pad_size = 0x80){
   stream.write(padding.data(), padding.size());
 }
 
-//
 bnafiletype getFileType(std::filesystem::path const& path){
   auto const res = filetypemap.find(path.extension().string().substr(1));
   return res == filetypemap.end() ? bnafiletype::other : res->second;
 }
 
-//For some reason, if you have 2 pathes and one of them is prefix to another(i.e. "root/abc/efg" and "root/abc"),
-//the prefix one("root/abc") is considered to be greater then other. And placed after the longer path.
+//For some reason, in BNA-files, if you have 2 pathes and one of them is prefix to another(i.e. "root/abc/efg" and "root/abc"),
+//the prefix one("root/abc") is considered to be greater and goes after the longer path.
 bool isBNASubfolder(std::string const& left, std::string const& right){
   if(left.size() == right.size()){
     return left < right;
@@ -56,8 +55,7 @@ bool isBNASubfolder(std::string const& left, std::string const& right){
   return is_prefix ? left.size() > right.size() : left < right;
 }
 
-//For some reason, even though file order based on the alphabet,
-//it's not applied to the file extensions
+//For some reason, even though file order based on the alphabet, it's not applied to the file extensions
 bool isBNAFileOrder(std::string const& left, std::string const& right){
   auto leftPath = std::filesystem::path(left);
   auto rightPath = std::filesystem::path(right);
@@ -90,7 +88,6 @@ void BNAPacker::openDir(std::string path) {
     m_file_data.emplace_back(std::move(file_data));
   }
 
-  qInfo() << "beep";
   std::ranges::sort(m_file_data, [](BNAExtractedFileData const& left, BNAExtractedFileData const& right){
     return left.dir_name == right.dir_name ? isBNAFileOrder(left.file_name, right.file_name) : isBNASubfolder(left.dir_name, right.dir_name);
   });
@@ -98,7 +95,6 @@ void BNAPacker::openDir(std::string path) {
   for(auto &file: m_file_data){
     std::ranges::replace(file.dir_name, '\\', '/');
   }
-  qInfo() << "boop";
 }
 
 bool BNAPacker::saveBNA(std::string path) {

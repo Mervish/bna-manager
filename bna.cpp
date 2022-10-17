@@ -17,10 +17,10 @@ auto constexpr terminator = '\0';
 
 }
 
-void BNA::parseFile(std::string const& filename)
+bool BNA::parseFile(std::string const& filename)
 {
   m_stream.open(filename, std::ios_base::binary);
-  if (!m_stream.is_open()) {    return;   }
+  if (!m_stream.is_open()) {    return false;   }
   m_file_data.clear();
   m_folder_library.clear();
   //Check idstring
@@ -30,6 +30,7 @@ void BNA::parseFile(std::string const& filename)
 
   if(memcmp("BNA0", idstring, idsize)){
     qInfo() << "The string is wrong!";
+    return false;
   }
 
   //Get filecount
@@ -65,15 +66,9 @@ void BNA::parseFile(std::string const& filename)
   }
 
   if(!m_file_data.empty()){
-    m_valid = true;
+    return true;
   }
-  //For test
-  //fetchAll();
-}
-
-bool BNA::valid() const
-{
-  return m_valid;
+  return false;
 }
 
 const std::vector<BNAFileEntry> &BNA::getFileData() const
@@ -86,7 +81,7 @@ const std::map<int, std::string> &BNA::getFolderLibrary() const
   return m_folder_library;
 }
 
-void BNA::extractFile(BNAFileEntry const& file, std::string out_path){
+void BNA::extractFile(BNAFileEntry const& file, std::string const& out_path){
   std::ofstream ostream(out_path, std::ios_base::binary);
   if(file.loaded){
     ostream.write(file.data.data(), file.data.size());
@@ -98,7 +93,7 @@ void BNA::extractFile(BNAFileEntry const& file, std::string out_path){
   }
 }
 
-void BNA::extractFile(FileSignature signature, std::string out_path)
+void BNA::extractFile(FileSignature const& signature, std::string const& out_path)
 {
   //It may look convoluted, because it is
   auto const off_it = std::ranges::find_if(m_folder_library, [folder = signature.path](auto const& pair){
@@ -121,7 +116,7 @@ void BNA::fetchAll(){
   m_stream.close();
 }
 
-void BNA::extractAll(std::string path)
+void BNA::extractAll(const std::string &path)
 {
   for(auto &file: m_file_data){
     auto dirpath = path + "/" + m_folder_library.at(file.offsets.dir_name.offset);

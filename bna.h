@@ -10,19 +10,17 @@ class BNA
 {
 public:
   BNA(){};
-  void parseFile(const std::string &filename);
+  bool parseFile(std::string const& filename);
 
-  bool valid() const;
   const std::vector<BNAFileEntry> &getFileData() const;
   const std::map<int, std::string> &getFolderLibrary() const;
-  void extractFile(FileSignature signature, std::string out_path);
-  void extractAll(std::string path);
+  void extractFile(FileSignature const& signature, std::string const& out_path);
+  void extractAll(std::string const& path);
 
 private:
   void fetchAll();
-  void extractFile(const BNAFileEntry &file_data, std::string out_path);
+  void extractFile(const BNAFileEntry &file_data, std::string const& out_path);
 
-  bool m_valid = false;
   std::ifstream m_stream;
   std::map<int, std::string> m_folder_library;
   std::vector<BNAFileEntry> m_file_data;

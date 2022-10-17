@@ -15,7 +15,6 @@ public:
   bool saveBNA(std::string path);
 
 private:
-  //std::set<std::string> m_directory_library;
   std::vector<BNAExtractedFileData> m_file_data;
 };
 

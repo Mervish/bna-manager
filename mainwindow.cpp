@@ -59,24 +59,19 @@ MainWindow::MainWindow(QWidget *parent)
     auto path = QFileDialog::getExistingDirectory(this, "Select root directory to pack", m_last_folder);
     auto save_path = QFileDialog::getSaveFileName(this, "Select file to save", m_last_folder, "Idolmaster archive (*.bna)");
     if(path.isEmpty() || save_path.isEmpty()){      return;    }
-    //auto ind = path.lastIndexOf('/');
-    //path.resize(ind);
     BNAPacker packer;
     packer.openDir(path.toStdString());
     packer.saveBNA(save_path.toStdString());
   });
-
   connect(ui->actionExtract_all, &QAction::triggered, [this]{
     if(!m_save_folder_dialog.exec()){      return;    }
     bna.extractAll(m_save_folder_dialog.selectedFiles().first().toStdString());
   });
-
   //set model interaction
   connect(ui->folderTreeView->selectionModel(), &QItemSelectionModel::currentChanged, [this](const QModelIndex &current, const QModelIndex&){
     m_file_table_model.setFileData(current.data(file_list_role));
     ui->fileTableView->resizeColumnsToContents();
   });
-
   //set edit triggers
   connect(ui->fileTableView, &FileTableView::extractionRequested, [this](QString const& filename){
     m_save_file_dialog.selectFile(filename);
@@ -99,8 +94,7 @@ void MainWindow::readFile(const QString &filename)
     QMessageBox::warning(this, "Error!", "Unable to open the file.");
     return;
   }
-  bna.parseFile(filename.toStdString());
-  if(!bna.valid()){
+  if(!bna.parseFile(filename.toStdString())){
     QMessageBox::warning(this, "Error!", "Unable to parse .bna file.");
     return;
   }
