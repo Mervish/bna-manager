@@ -109,15 +109,16 @@ MainWindow::MainWindow(QWidget *parent)
       manager->saveToData(file.file_data);
   });
 
-  //save BNA-file
-  connect(ui->actionSave, &QAction::triggered, [this]{
+  //save BNA-file as
+  connect(ui->actionSave_as, &QAction::triggered, [this]{
+    m_save_file_dialog.setNameFilter(bna_signature);
     if(!m_save_file_dialog.exec()){      return;    }
     bna.saveToFile(m_save_file_dialog.selectedFiles().first().toStdString());
   });
 
 #warning remove these
   //testing actions
-  connect(ui->actionSCB_rebuilding_test, &QAction::triggered, [this]{
+  /*connect(ui->actionSCB_rebuilding_test, &QAction::triggered, [this]{
     //open the scb file
     auto path = QFileDialog::getOpenFileName(this, "Select scb file", m_last_folder, "SCB (*.scb)");
     if(path.isEmpty()){      return;    }
@@ -128,7 +129,7 @@ MainWindow::MainWindow(QWidget *parent)
     auto const base_info = QFileInfo(path);
     auto const savefile_base_name = base_info.absolutePath() + '/' + base_info.baseName() + "_r.scb";
     scb.saveToFile(savefile_base_name.toStdString());
-  });
+  });*/
 
   ui->FileLabel->setText(m_label_file_template.arg(text_file_label_none));
 }
@@ -140,7 +141,7 @@ MainWindow::~MainWindow()
 
 void MainWindow::enableBNAActions(bool enable) {
   ui->actionExtract_all->setEnabled(enable);
-  ui->actionSave->setEnabled(enable);
+  //ui->actionSave->setEnabled(enable);
   ui->actionSave_as->setEnabled(enable);
 }
 

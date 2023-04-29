@@ -52,17 +52,22 @@ void FileTableView::onItemMenu(QModelIndex const& index, QPoint const& pos) {
   if(auto const man = m_filetypes_managers->find(type); man != m_filetypes_managers->end()){
     auto const api = man->second->getApi();
 
+    for(auto &connection: connections) {
+        disconnect(connection);
+    }
+    connections.clear();
+
     m_extract_action->setText(QString::fromStdString(api.extraction_title));
     m_inject_action->setText(QString::fromStdString(api.injection_title));
 
     auto const name = selectedIndexes().front().data().toString();
 
-    connect(m_extract_action, &QAction::triggered, [this, name, extension = QString::fromStdString(api.extension)](){
+    connections.push_back(connect(m_extract_action, &QAction::triggered, [this, name, extension = QString::fromStdString(api.extension)](){
         emit dataExtractionRequested(name, extension);
-    });
-    connect(m_inject_action, &QAction::triggered, [this, name, extension = QString::fromStdString(api.extension)](){
+    }));
+    connections.push_back(connect(m_inject_action, &QAction::triggered, [this, name, extension = QString::fromStdString(api.extension)](){
         emit dataInjectionRequested(name, extension);
-    });
+    }));
 
     m_extract_action->setVisible(true);
     m_inject_action->setVisible(true);

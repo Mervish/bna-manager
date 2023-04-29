@@ -34,6 +34,8 @@ private:
   QAction *m_extract_file_action;
   QAction *m_replace_action;
   QAction *m_delete_action;
+  //connections
+  std::vector<QMetaObject::Connection> connections;
   //dynamic actions
   QAction *m_extract_action;
   QAction *m_inject_action;

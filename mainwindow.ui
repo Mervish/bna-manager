@@ -161,6 +161,9 @@
    </property>
   </action>
   <action name="actionSCB_rebuilding_test">
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
    <property name="text">
     <string>SCB rebuilding test...</string>
    </property>

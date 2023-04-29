@@ -49,7 +49,7 @@ set(APP_VERSION 0.1)
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
     qt_add_executable(BNAManager
-        MANUAL_FINALIZATION
+        WIN32
         ${PROJECT_SOURCES}
     )
 # Define target properties for Android with Qt 6 as:
