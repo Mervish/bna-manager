@@ -1,12 +1,12 @@
 #include "filetablemodel.h"
 
-#define SWITCH_TYPE_LITERAL(lit)\
-case ImasFileType::lit:\
-return QStringLiteral(#lit);
+/*#define SWITCH_TYPE_LITERAL(lit)\
+case imas::model::ImasFileType::lit:\
+return QStringLiteral(#lit);*/
 
 namespace  {
 
-auto getTypeString(ImasFileType type){
+/*auto getTypeString(imas::model::ImasFileType type){
   switch (type) {
   SWITCH_TYPE_LITERAL(acc)
   SWITCH_TYPE_LITERAL(nud)
@@ -15,9 +15,13 @@ auto getTypeString(ImasFileType type){
   SWITCH_TYPE_LITERAL(skl)
   }
   return QStringLiteral("u/n");
-}
+}*/
 
 }
+
+namespace imas {
+namespace model {
+
 
 FileTableModel::FileTableModel(QObject *parent) : QAbstractTableModel(parent) {}
 
@@ -37,8 +41,9 @@ QVariant FileTableModel::headerData(int section, Qt::Orientation orientation,
 }
 
 int FileTableModel::rowCount(const QModelIndex &parent) const {
-  if (parent.isValid())
+  if (parent.isValid()) {
     return 0;
+  }
 
   return m_folder_data.file_list.size();
 }
@@ -59,8 +64,7 @@ QVariant FileTableModel::data(const QModelIndex &index, int role) const {
   case 0:
     return m_folder_data.file_list[row].name;
   case 1:
-    return {};
-    //return getTypeString(m_file_list[row].type);
+    return m_folder_data.file_list[row].type;
   case 2:
     return m_folder_data.file_list[row].size;
   default:
@@ -71,7 +75,10 @@ QVariant FileTableModel::data(const QModelIndex &index, int role) const {
 }
 
 void FileTableModel::setFileData(QVariant folderData){
-  emit beginResetModel();
+  beginResetModel();
   m_folder_data = folderData.value<FolderData>();
-  emit endResetModel();
+  endResetModel();
+}
+
+}
 }

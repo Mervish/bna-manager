@@ -1,20 +1,23 @@
-#ifndef FILETABLEMODEL_H
-#define FILETABLEMODEL_H
+#pragma once
 
 #include <QAbstractTableModel>
 
-//Just to not use std::pair and have ability to add new params in the future
-struct NameSizePair{
-  QString name;
-  int size;
+namespace imas {
+namespace model {
+
+struct FileData{
+    explicit FileData(QString filename, int size) : name(filename), size(size) {
+        type = filename.right(3); //super hack!
+    }
+    QString name;
+    QString type;
+    int size;
 };
 
 struct FolderData{
   QString directory;
-  std::vector<NameSizePair> file_list;
+  std::vector<FileData> file_list;
 };
-
-Q_DECLARE_METATYPE(FolderData);
 
 enum class ImasFileType
 {
@@ -49,13 +52,10 @@ public:
   QString const& currentDir() const { return m_folder_data.directory; };
 
 private:
-  struct FileData{
-    QString name;
-    //ImasFileType type;
-    int size;
-  };
-
   FolderData m_folder_data;
 };
 
-#endif // FILETABLEMODEL_H
+}
+}
+
+Q_DECLARE_METATYPE(imas::model::FolderData);

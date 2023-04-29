@@ -13,7 +13,6 @@ public:
   BNAPacker();
   void openDir(std::string path);
   bool saveBNA(std::string path);
-
 private:
   std::vector<BNAExtractedFileData> m_file_data;
 };

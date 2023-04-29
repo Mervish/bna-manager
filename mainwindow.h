@@ -5,9 +5,9 @@
 #include <QMainWindow>
 #include <QStandardItemModel>
 
-#include "bna.h"
-#include "bnapacker.h"
+#include "filetypes/bna.h"
 #include "filetablemodel.h"
+#include "filetypes/manageable.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -24,9 +24,10 @@ public:
 
 private:
   void readFile(QString const &filename);
+  void enableBNAActions(bool enable);
 
   Ui::MainWindow *ui;
-  BNA bna;
+  imas::file::BNA bna;
   //Strings
   QString m_last_folder;
   QString m_label_file_template;
@@ -36,6 +37,10 @@ private:
   QFileDialog m_save_folder_dialog;
   //Models
   QStandardItemModel m_folder_tree_model;
-  FileTableModel m_file_table_model;
+  imas::model::FileTableModel m_file_table_model;
+  //filetype manager
+  template<class T>
+  void registerType();
+  imas::file::ManagerMap m_filetypes_managers;
 };
 #endif // MAINWINDOW_H

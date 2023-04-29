@@ -24,10 +24,17 @@ set(PROJECT_SOURCES
         mainwindow.cpp
         mainwindow.h
         mainwindow.ui
-        bna.h
-        bna.cpp
-        bnapacker.h
-        bnapacker.cpp
+        filetypes/manageable.h
+        filetypes/bna.h
+        filetypes/bna.cpp
+        filetypes/msg.h
+        filetypes/msg.cpp
+        filetypes/scb.h
+        filetypes/scb.cpp
+        utility/stdhacks.h
+        utility/stdhacks.cpp
+        utility/datatools.h
+        utility/streamtools.h
         about.h
         about.cpp
         about.ui
@@ -35,8 +42,6 @@ set(PROJECT_SOURCES
         filetablemodel.cpp
         filetableview.h
         filetableview.cpp
-        stdhacks.h
-        stdhacks.cpp
         bnacommontypes.h
 )
 
