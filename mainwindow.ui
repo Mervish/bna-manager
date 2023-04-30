@@ -123,7 +123,7 @@
      <normaloff>.</normaloff>.</iconset>
    </property>
    <property name="text">
-    <string>Open bna...</string>
+    <string>Open...</string>
    </property>
   </action>
   <action name="actionAbout">
@@ -157,7 +157,7 @@
   </action>
   <action name="actionOpenDir">
    <property name="text">
-    <string>Open dir...</string>
+    <string>Pack dir...</string>
    </property>
   </action>
   <action name="actionSCB_rebuilding_test">

@@ -1,5 +1,4 @@
-#ifndef ABOUT_H
-#define ABOUT_H
+#pragma once
 
 #include <QDialog>
 
@@ -7,16 +6,14 @@ namespace Ui {
 class about;
 }
 
-class about : public QDialog
+class AboutWindow : public QDialog
 {
   Q_OBJECT
 
       public:
-               explicit about(QWidget *parent = nullptr);
-  ~about();
+  explicit AboutWindow(QWidget *parent = nullptr);
+          ~AboutWindow();
 
 private:
   Ui::about *ui;
 };
-
-#endif // ABOUT_H

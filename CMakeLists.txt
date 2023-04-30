@@ -35,6 +35,8 @@ set(PROJECT_SOURCES
         utility/stdhacks.cpp
         utility/datatools.h
         utility/streamtools.h
+        utility/logger.h
+        utility/logger.cpp
         about.h
         about.cpp
         about.ui
@@ -45,7 +47,7 @@ set(PROJECT_SOURCES
         bnacommontypes.h
 )
 
-set(APP_VERSION 0.1)
+set(APP_VERSION 0.5)
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
     qt_add_executable(BNAManager
@@ -73,6 +75,7 @@ endif()
 target_link_libraries(BNAManager PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
 
 set_target_properties(BNAManager PROPERTIES
+    OUTPUT_NAME BNATool
     MACOSX_BUNDLE_GUI_IDENTIFIER my.example.com
     MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
     MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}

@@ -30,5 +30,9 @@
 *.exe
 *.out
 *.app
-CMakeLists.txt.user.8661635
+
 CMakeLists.txt.user
+CMakeLists.txt.user.*
+build/
+.vscode/
+

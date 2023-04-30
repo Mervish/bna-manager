@@ -8,6 +8,7 @@ FileTableView::FileTableView(QWidget *parent)
     : QTableView(parent)
 {
     m_extract_file_action = m_item_menu.addAction("Extract to...");
+    m_replace_file_action = m_item_menu.addAction("Replace with...");
     m_item_menu.addSeparator();
     m_extract_action = m_item_menu.addAction("[debug]Extract...");
     m_inject_action = m_item_menu.addAction("[debug]Inject...");
@@ -15,6 +16,10 @@ FileTableView::FileTableView(QWidget *parent)
     connect(m_extract_file_action, &QAction::triggered, [this]() {
         auto name = selectedIndexes().front().data().toString();
         emit extractionRequested(name);
+    });
+    connect(m_replace_file_action, &QAction::triggered, [this]() {
+        auto name = selectedIndexes().front().data().toString();
+        emit replacementRequested(name);
     });
 }
 

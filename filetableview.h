@@ -17,6 +17,7 @@ public:
 
   signals:
   void extractionRequested(QString const& filename);
+  void replacementRequested(QString const& filename);
 
   void dataExtractionRequested(QString const& filename, QString const& key);
   void dataInjectionRequested(QString const& filename, QString const& key);
@@ -32,6 +33,7 @@ private:
   QMenu m_table_menu;
   QMenu m_item_menu;
   QAction *m_extract_file_action;
+  QAction *m_replace_file_action;
   QAction *m_replace_action;
   QAction *m_delete_action;
   //connections

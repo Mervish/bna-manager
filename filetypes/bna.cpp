@@ -264,9 +264,26 @@ void BNA::extractFile(BNAFileEntry const& file, std::string const& out_path){
   }
 }
 
+void BNA::replaceFile(BNAFileEntry& file, std::string const& in_path){
+  std::ifstream ifstream(in_path, std::ios_base::binary);
+  if(!ifstream.is_open()){
+    return;
+  }
+  //get file size
+  auto const size = std::filesystem::file_size(in_path);
+  file.file_data.resize(size);
+  ifstream.read(file.file_data.data(), size);
+  file.loaded = true;
+}
+
 void BNA::extractFile(FileSignature const& signature, std::string const& out_path)
 {
   extractFile(getFile(signature), out_path);
+}
+
+void BNA::replaceFile(FileSignature const& signature, std::string const& in_path)
+{
+  replaceFile(getFile(signature), in_path);
 }
 
 BNAFileEntry& BNA::getFile(FileSignature const& signature)

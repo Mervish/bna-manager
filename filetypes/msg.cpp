@@ -108,7 +108,8 @@ template <class S> void MSG::openFromStream(S &stream) {
     size_t const zero_point = stream.tellg();
     for (auto &entry : m_entries) {
         stream.seekg(zero_point + entry.map.offset);
-        entry.data.resize(entry.map.size / 2);
+        //Let's strip terminating character from the string
+        entry.data.resize((entry.map.size - 1) / 2);
         for (auto &wide : entry.data) {
             wide = imas::tools::readShort(stream);
         }
@@ -134,7 +135,7 @@ void MSG::saveToStream(S &stream)
     tools::padStream(stream, 0, 4);
     int32_t text_offset = 0;
     for(auto const& string: m_entries){
-        int32_t str_size = string.data.size() * 2;
+        int32_t const str_size = (string.data.size() + 1) * 2;
         tools::writeLong(stream, str_size);
         tools::writeLong(stream, text_offset);
         text_offset += str_size;
@@ -144,6 +145,8 @@ void MSG::saveToStream(S &stream)
         for (auto const &wide : string.data) {
             tools::writeShort(stream, wide);
         }
+        //Add terminating character to the string
+        tools::writeShort(stream, wchar_t('\0'));
     }
     //Finalizing
     tools::evenWriteStream(stream, padding_literal);

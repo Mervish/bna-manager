@@ -1,8 +1,10 @@
 #include "mainwindow.h"
 
+#include "about.h"
 #include "filetypes/scb.h"
 
 #include <QMessageBox>
+
 #include <boost/range/adaptors.hpp>
 
 #include "./ui_mainwindow.h"
@@ -33,35 +35,59 @@ std::optional<QStandardItem*> contains(QStandardItem *item, QString const& strin
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
       , ui(new Ui::MainWindow)
-      , m_last_folder("C:/Users/Mervish/Documents/Xenia/bna")
       , m_label_file_template("current file: %1")
-      , m_open_file_dialog(nullptr, "Select file to open", m_last_folder, bna_signature)
-      , m_save_file_dialog(nullptr, "Select where to save file", m_last_folder, "All types (*.*)")
-      , m_save_folder_dialog(nullptr, "Select extraction folder", m_last_folder)
+      , m_open_file_dialog(this, "Select file to open", m_last_folder, bna_signature)
+      , m_save_file_dialog(this, "Select where to save the file", m_last_folder, "All types (*.*)")
+      , m_save_folder_dialog(this, "Select extraction folder", m_last_folder)
+      , m_about_window(this)
 {
-  registerType<imas::file::SCB>();
+  //filetypes managers
+  registerManager<imas::file::SCB>();
 
   ui->setupUi(this);
   ui->folderTreeView->setModel(&m_folder_tree_model);
   ui->fileTableView->setModel(&m_file_table_model);
   ui->fileTableView->setFiletypesManagers(&m_filetypes_managers);
+  ui->consoleView->setReadOnly(true);
 
+  m_logger = Logger::getLogger();
+  m_logger->setTextEdit(ui->consoleView);
+  m_logger->log(LogMessageType::Info, "Testing logger.");
+
+  //dialog modes
   m_open_file_dialog.setFileMode(QFileDialog::ExistingFile);
   m_save_file_dialog.setFileMode(QFileDialog::AnyFile);
   m_save_file_dialog.setAcceptMode(QFileDialog::AcceptSave);
   m_save_folder_dialog.setFileMode(QFileDialog::Directory);
 
+  //icons
   ui->actionOpenBna->setIcon(this->style()->standardIcon(QStyle::SP_DialogOpenButton));
   ui->actionOpenDir->setIcon(this->style()->standardIcon(QStyle::SP_DirOpenIcon));
   ui->actionExtract_all->setIcon(this->style()->standardIcon(QStyle::SP_DialogSaveAllButton));
   ui->actionSave->setIcon(this->style()->standardIcon(QStyle::SP_DialogSaveButton));
   ui->actionSave_as->setIcon(this->style()->standardIcon(QStyle::SP_DialogSaveButton));
 
-  //set actions
-  //open BNA-file
+  //essential UI interaction
+  connect(ui->folderTreeView->selectionModel(), &QItemSelectionModel::currentChanged, [this](const QModelIndex &current, const QModelIndex&){
+    m_file_table_model.setFileData(current.data(file_list_role));
+    ui->fileTableView->resizeColumnsToContents();
+  });
+  connect(ui->actionAbout, &QAction::triggered, [this]{
+      m_about_window.exec();
+  });
+
+  //BNA actions
+  //open BNA
   connect(ui->actionOpenBna, &QAction::triggered, [this]{
     if(!m_open_file_dialog.exec()){      return;    }
     readFile(m_open_file_dialog.selectedFiles().first());
+  });
+  //save BNA-file as
+  connect(ui->actionSave_as, &QAction::triggered, [this]{
+    m_save_file_dialog.setNameFilter(bna_signature);
+    if(!m_save_file_dialog.exec()){      return;    }
+    bna.saveToFile(m_save_file_dialog.selectedFiles().first().toStdString());
+    m_logger->log(LogMessageType::Info, "Saved as " + m_save_file_dialog.selectedFiles().first());
   });
   //pack directory into BNA
   connect(ui->actionOpenDir, &QAction::triggered, [this]{
@@ -71,23 +97,36 @@ MainWindow::MainWindow(QWidget *parent)
     imas::file::BNA packer;
     packer.loadFromDir(path.toStdString());
     packer.saveToFile(save_path.toStdString());
+    m_logger->log(LogMessageType::Info, QString("Packed BNA to: %1").arg(save_path));
   });
   //extract all files from BNA
   connect(ui->actionExtract_all, &QAction::triggered, [this]{
     if(!m_save_folder_dialog.exec()){      return;    }
-    bna.extractAll(m_save_folder_dialog.selectedFiles().first().toStdString());
+    auto const folder = m_save_folder_dialog.selectedFiles().first();
+    bna.extractAll(folder.toStdString());
+    m_logger->log(LogMessageType::Info, QString("Extracted BNA to: %1").arg(folder));
   });
-  //set model interaction
-  connect(ui->folderTreeView->selectionModel(), &QItemSelectionModel::currentChanged, [this](const QModelIndex &current, const QModelIndex&){
-    m_file_table_model.setFileData(current.data(file_list_role));
-    ui->fileTableView->resizeColumnsToContents();
-  });
-  //set edit triggers
+  //table actions
+  //extract file
   connect(ui->fileTableView, &FileTableView::extractionRequested, [this](QString const& filename){
     m_save_file_dialog.selectFile(filename);
+    auto const type_signature = QString("Requested type (*.%1)").arg(filename.mid(filename.lastIndexOf('.') + 1));
+    m_save_file_dialog.setNameFilter(type_signature);
     if(!m_save_file_dialog.exec()) { return; }
     bna.extractFile({m_file_table_model.currentDir().toStdString(), filename.toStdString()}, m_save_file_dialog.selectedFiles().first().toStdString());
+    m_logger->log(LogMessageType::Info, QString("Extracted file: %1").arg(filename));
   });
+  //replace file
+  connect(ui->fileTableView, &FileTableView::replacementRequested, [this](QString const& filename){
+    m_open_file_dialog.selectFile(filename);
+    auto const type_signature = QString("Requested type (*.%1)").arg(filename.mid(filename.lastIndexOf('.') + 1));
+    m_open_file_dialog.setNameFilter(type_signature);
+    if(!m_open_file_dialog.exec()){      return;    }
+    bna.replaceFile({m_file_table_model.currentDir().toStdString(), filename.toStdString()}, m_open_file_dialog.selectedFiles().first().toStdString());
+    m_logger->log(LogMessageType::Info, QString("Replaced file: %1").arg(filename));
+  });
+
+  //manager dependand actions
   connect(ui->fileTableView, &FileTableView::dataExtractionRequested, [this](QString const& filename, QString const& key){
       auto &manager = m_filetypes_managers.at(key.toStdString());
       m_save_file_dialog.setNameFilter(QString::fromStdString(manager->getApi().signature));
@@ -97,6 +136,7 @@ MainWindow::MainWindow(QWidget *parent)
       manager->loadFromData(file.file_data);
       manager->extract(m_save_file_dialog.selectedFiles().first().toStdString());
       //extraction is a simple one-way process
+      m_logger->log(LogMessageType::Info, QString("Extracted data from %1 to %2").arg(filename, m_save_file_dialog.selectedFiles().first()));
   });
   connect(ui->fileTableView, &FileTableView::dataInjectionRequested, [this](QString const& filename, QString const& key){
       auto &manager = m_filetypes_managers.at(key.toStdString());
@@ -107,13 +147,7 @@ MainWindow::MainWindow(QWidget *parent)
       manager->loadFromData(file.file_data);
       manager->inject(m_open_file_dialog.selectedFiles().first().toStdString());
       manager->saveToData(file.file_data);
-  });
-
-  //save BNA-file as
-  connect(ui->actionSave_as, &QAction::triggered, [this]{
-    m_save_file_dialog.setNameFilter(bna_signature);
-    if(!m_save_file_dialog.exec()){      return;    }
-    bna.saveToFile(m_save_file_dialog.selectedFiles().first().toStdString());
+      m_logger->log(LogMessageType::Info, QString("Injected data from %1 to %2").arg(m_open_file_dialog.selectedFiles().first(), filename));
   });
 
 #warning remove these
@@ -199,11 +233,12 @@ void MainWindow::readFile(const QString &filename)
   }
 
   ui->folderTreeView->expandAll();
+  m_logger->log(LogMessageType::Info, QString("File loaded: %1").arg(filename));
 }
 
 //Warning: a black magic
 template<class T>
-void MainWindow::registerType()
+void MainWindow::registerManager()
 {
   auto manager = std::make_unique<T>();         //Create an instance of the type
   auto const key = manager->getApi().extension; //Get the key
