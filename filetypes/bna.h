@@ -18,6 +18,7 @@ public:
     BNAFileEntry& getFile(const FileSignature& signature);
     void reset();
     const std::vector<BNAFileEntry> &getFileData() const;
+    std::vector<std::reference_wrapper<BNAFileEntry>> const getFiles(std::string const& extension);
     const std::map<int, std::string> &getFolderLibrary() const;
     void extractFile(FileSignature const& signature, std::string const& out_path);
     void replaceFile(FileSignature const& signature, std::string const& in_path);

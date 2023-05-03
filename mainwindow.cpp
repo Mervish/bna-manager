@@ -81,6 +81,7 @@ MainWindow::MainWindow(QWidget *parent)
   //BNA actions
   //open BNA
   connect(ui->actionOpenBna, &QAction::triggered, [this]{
+    m_open_file_dialog.setNameFilter(bna_signature);
     if(!m_open_file_dialog.exec()){      return;    }
     closeFile();
     openFile(m_open_file_dialog.selectedFiles().first());

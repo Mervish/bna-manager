@@ -85,8 +85,19 @@ if(QT_VERSION_MAJOR EQUAL 6)
     qt_finalize_executable(BNAManager)
 endif()
 
+qt_add_executable(BNAMaster
+    WIN32
+    master/main.cpp
+    filetypes/bna.h
+    filetypes/bna.cpp
+)
+
 if(Boost_FOUND)
     include_directories(${Boost_INCLUDE_DIRS})
     #add_executable(progname file1.cxx file2.cxx)
     target_link_libraries(BNAManager ${Boost_LIBRARIES})
+    target_link_libraries(BNAMaster ${Boost_LIBRARIES})
 endif()
+
+target_link_libraries(BNAMaster PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
+

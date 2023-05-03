@@ -131,7 +131,7 @@ bool BNA::loadFromFile(std::string const& filename)
   }
 
   if(!m_file_data.empty()){
-    sortFileData();
+    //sortFileData();
     return true;
   }
   return false;
@@ -237,6 +237,14 @@ void BNA::saveToFile(std::string const& filename)
 const std::vector<BNAFileEntry> &BNA::getFileData() const
 {
   return m_file_data;
+}
+
+std::vector<std::reference_wrapper<BNAFileEntry> > const BNA::getFiles(std::string const &extension)
+{
+  auto filtered = m_file_data | adaptor::filtered([extension](auto& entry){
+    return entry.file_name.substr(entry.file_name.find_last_of('.') + 1) == extension;
+                        }) | adaptor::transformed([](auto& entry) { return std::reference_wrapper(entry); });
+  return std::vector<std::reference_wrapper<BNAFileEntry>>(filtered.begin(), filtered.end());
 }
 
 const std::map<int, std::string> &BNA::getFolderLibrary() const

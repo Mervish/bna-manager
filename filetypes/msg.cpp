@@ -49,7 +49,7 @@ uint32_t MSG::headerSize() const {
 
 uint32_t MSG::stringsSize() const {
     return std::accumulate(m_entries.begin(), m_entries.end(), 0, [](const auto &a, const auto &b){
-        return a + (b.data.size() * 2);
+        return a + ((b.data.size() + 1) * 2);
     });
 }
 
