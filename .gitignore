@@ -35,4 +35,6 @@ CMakeLists.txt.user
 CMakeLists.txt.user.*
 build/
 .vscode/
+CMakeFiles/
 
+CMakeCache.txt

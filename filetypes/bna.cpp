@@ -140,42 +140,33 @@ bool BNA::loadFromFile(std::string const& filename)
 bool BNA::loadFromDir(std::string const& dirname)
 {
   std::filesystem::path root_path(dirname);
-  std::unordered_set<std::string> dir_library;
-  for (auto const& dir : std::filesystem::recursive_directory_iterator(dirname)) {
-    if (!dir.is_regular_file()) {
+  std::unordered_map<std::string, std::vector<std::filesystem::directory_entry>> filemap;
+  for (auto const &filepath : std::filesystem::recursive_directory_iterator(dirname)) {
+    if (!filepath.is_regular_file()) {
         continue;
     }
-    auto const filepath = dir.path().filename().string();
-    //add dir path to folder_offset_library if new
-    auto const dirpath = std::filesystem::relative(dir.path().parent_path(), dirname).string();
-    auto const [iter, _dummy] = dir_library.insert(dirpath);
-
-    BNAFileEntry file_data{.file_name = filepath,
-                           .dir_name = *iter,
-                           .loaded = true};
-    //file_data.offsets.dir_name.offset = dir_counter++;
-    auto const size = std::filesystem::file_size(dir.path());
-    file_data.file_data.resize(size);
-    std::ifstream stream(dir.path().string(), std::ios_base::binary);
-    stream.read(file_data.file_data.data(), size);
-    m_file_data.emplace_back(std::move(file_data));
+    auto const dirpath = std::filesystem::relative(filepath.path().parent_path(), dirname).string();
+    filemap[dirpath].push_back(filepath);
   }
 
-  int dir_counter = 0;
-  for (auto iter = dir_library.begin(); iter != dir_library.end(); ++iter) {
-    m_folder_offset_library[dir_counter] = *iter;
-    for (auto &file : m_file_data | adaptor::filtered([&iter](auto const &entry) {
-                          return entry.dir_name == *iter;
-                      })) {
-        file.dir_name = *iter;
-        file.offsets.dir_name.offset = dir_counter;
+  for(auto const& [index, pair]: filemap | adaptor::indexed(0))
+  {
+    auto const& [dir, file_list] = pair;
+    auto fixed_dir(dir);
+    std::ranges::replace(fixed_dir, '\\', '/');
+
+    auto it_dir = m_folder_offset_library.insert({index, fixed_dir}).first;
+
+    for(auto&& filename: file_list) {
+        BNAFileEntry file_data{.file_name = filename.path().filename().string(),
+                               .dir_name = it_dir->second,
+                               .loaded = true};
+        auto const size = std::filesystem::file_size(filename.path());
+        file_data.file_data.resize(size);
+        std::ifstream stream(filename.path().string(), std::ios_base::binary);
+        stream.read(file_data.file_data.data(), size);
+        m_file_data.emplace_back(std::move(file_data));
     }
-    ++dir_counter;
-  }
-
-  //Let's turn pathes into posix style
-  for(auto & [index, folder]: m_folder_offset_library){
-    std::ranges::replace(folder, '\\', '/');
   }
 
   sortFileData();
@@ -189,7 +180,8 @@ void BNA::saveToFile(std::string const& filename)
   //constexpr auto title = "Saving BNA file...";
 
   std::ofstream stream(filename, std::ios_base::binary);
-  if (!stream.is_open()) {    return;   }
+  if (!stream.is_open()) {    return;
+  }
   //Let's begin calculating
   std::vector<BNAOffsetData> file_offset_data(m_file_data.size());
   auto file_combo = boost::combine(m_file_data, file_offset_data);
@@ -256,7 +248,7 @@ void BNA::extractFile(BNAFileEntry const& file, std::string const& out_path){
   std::ofstream ostream(out_path, std::ios_base::binary);
   if(file.loaded){
     ostream.write(file.file_data.data(), file.file_data.size());
-  }else{
+  } else {
     std::vector<char> midbuf(file.offsets.file_data.size);
     m_stream.seekg(file.offsets.file_data.offset);
     m_stream.read(midbuf.data(), file.offsets.file_data.size);
@@ -302,6 +294,13 @@ BNAFileEntry& BNA::getFile(FileSignature const& signature)
   return *file_it;
 }
 
+void BNA::reset()
+{
+  m_file_data.clear();
+  m_folder_offset_library.clear();
+  m_stream.close();
+}
+
 void BNA::fetchFile(BNAFileEntry& file) {
   if(!m_stream.is_open()) {
     return;
@@ -335,7 +334,6 @@ void BNA::extractAll(const std::string &path)
     extractFile(file, dirpath + "/" + file.file_name);
   }
 }
-
 }
 }
 

@@ -105,7 +105,7 @@
     <addaction name="actionExtract_all"/>
     <addaction name="actionSave"/>
     <addaction name="actionSave_as"/>
-    <addaction name="actionSCB_rebuilding_test"/>
+    <addaction name="actionClose"/>
    </widget>
    <widget class="QMenu" name="menuHelp">
     <property name="title">
@@ -113,7 +113,17 @@
     </property>
     <addaction name="actionAbout"/>
    </widget>
+   <widget class="QMenu" name="menuDebug">
+    <property name="title">
+     <string>Debug</string>
+    </property>
+    <addaction name="actionSCB_rebuilding_test"/>
+    <addaction name="actionMSG_extraction"/>
+    <addaction name="actionMSG_rebuilding_test"/>
+    <addaction name="actionBNA_rebuilding_test"/>
+   </widget>
    <addaction name="menuFile"/>
+   <addaction name="menuDebug"/>
    <addaction name="menuHelp"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
@@ -162,10 +172,30 @@
   </action>
   <action name="actionSCB_rebuilding_test">
    <property name="enabled">
-    <bool>false</bool>
+    <bool>true</bool>
    </property>
    <property name="text">
     <string>SCB rebuilding test...</string>
+   </property>
+  </action>
+  <action name="actionMSG_extraction">
+   <property name="text">
+    <string>MSG extraction...</string>
+   </property>
+  </action>
+  <action name="actionMSG_rebuilding_test">
+   <property name="text">
+    <string>MSG rebuilding test...</string>
+   </property>
+  </action>
+  <action name="actionBNA_rebuilding_test">
+   <property name="text">
+    <string>BNA rebuilding test...</string>
+   </property>
+  </action>
+  <action name="actionClose">
+   <property name="text">
+    <string>Close</string>
    </property>
   </action>
  </widget>

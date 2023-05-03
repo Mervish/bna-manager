@@ -19,15 +19,6 @@ struct FolderData{
   std::vector<FileData> file_list;
 };
 
-enum class ImasFileType
-{
-  acc,
-  nud,
-  num,
-  nut,
-  skl
-};
-
 class FileTableModel : public QAbstractTableModel {
   Q_OBJECT
 
@@ -41,6 +32,7 @@ public:
   // Basic functionality:
   int rowCount(const QModelIndex &parent = QModelIndex()) const override;
   int columnCount(const QModelIndex &parent = QModelIndex()) const override;
+  void clear();
 
   QVariant data(const QModelIndex &index,
                 int role = Qt::DisplayRole) const override;

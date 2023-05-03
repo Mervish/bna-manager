@@ -44,8 +44,8 @@ public:
   MSG &msg_data();
 
   //virtuals
-  virtual void extract(std::string const& savepath) override;
-  virtual void inject(std::string const& openpath) override;
+  virtual std::pair<bool, std::string> extract(std::string const& savepath) override;
+  virtual std::pair<bool, std::string> inject(std::string const& openpath) override;
 
 private:
   template<class S> void openFromStream(S &stream);

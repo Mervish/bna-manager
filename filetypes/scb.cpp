@@ -59,25 +59,29 @@ void SCB::loadFromData(const std::vector<char> &data) {
 
 MSG &SCB::msg_data() { return m_msg_data; }
 
-void SCB::extract(const std::string &savepath){
+std::pair<bool, std::string> SCB::extract(const std::string &savepath){
   auto const data = QJsonDocument(m_msg_data.getJson()).toJson();
   QFile file(QString::fromStdString(savepath));
   if (!file.open(QIODevice::WriteOnly | QIODevice::Text)){
-    return;
+    return {false, "Failed to open file"};
   }
 
   file.write(data);
   file.close();
+  return {true, ""};
 }
 
-void SCB::inject(std::string const& openpath){
+std::pair<bool, std::string> SCB::inject(std::string const& openpath){
   QFile file(QString::fromStdString(openpath));
   if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-    return;
+    return {false, "Failed to open file" + openpath};
   }
 
-  m_msg_data.fromJson(QJsonDocument::fromJson(file.readAll()).array());
+  if(auto const res = m_msg_data.fromJson(QJsonDocument::fromJson(file.readAll()).array()); !res.first){
+    return res;
+  }
   rebuild();
+  return {true, ""};
 }
 
 template <class S> void SCB::openFromStream(S &stream) {

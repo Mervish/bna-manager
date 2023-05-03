@@ -28,8 +28,8 @@ public:
     virtual void saveToData(std::vector<char> &data) = 0;
     virtual void saveToFile(const std::string &filename) = 0;
     //virtual methods
-    virtual void extract(std::string const& savepath) = 0;
-    virtual void inject(std::string const& openpath) = 0;
+    virtual std::pair<bool, std::string> extract(std::string const& savepath) = 0;
+    virtual std::pair<bool, std::string> inject(std::string const& openpath) = 0;
 
 protected:
     fileapi m_api;

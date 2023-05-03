@@ -52,6 +52,14 @@ int FileTableModel::columnCount(const QModelIndex &parent) const {
   return 3;
 }
 
+void FileTableModel::clear()
+{
+  beginResetModel();
+  m_folder_data.directory.clear();
+  m_folder_data.file_list.clear();
+  endResetModel();
+}
+
 QVariant FileTableModel::data(const QModelIndex &index, int role) const {
   if (!index.isValid())
   {  return QVariant();   }

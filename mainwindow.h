@@ -18,13 +18,17 @@ class MainWindow;
 QT_END_NAMESPACE
 
 /* AGENDA
-  1. [ ]Make BNA-reopenable. Add ability to close BNA-files.
+  1. [v]Make BNA-reopenable. Add ability to close BNA-files.
   2. [?]Add ability to replace files in BNA.
-  3. [ ]Add protection and checks to some functions.
+  3. [*]Add protection and checks to some functions.
   4. [*]Add console.
   5. [ ]Update file data in table when they are being updated.
+  6. [*]Drag and drop support
+  7. [ ]File loading functions should output error messages along with the result.
   ? - not tested
   * - partial
+  REFACTORING IDEAS
+  1. Adopt QString throughout the project
  */
 
 class MainWindow : public QMainWindow {
@@ -34,16 +38,26 @@ public:
   MainWindow(QWidget *parent = nullptr);
   ~MainWindow();
 
+protected:
+  void dragEnterEvent(QDragEnterEvent *event) override;
+  void dropEvent(QDropEvent *event) override;
+
 private:
-  void readFile(QString const &filename);
+  void openFile(QString const &filename);
+  void closeFile();
   void enableBNAActions(bool enable);
+
+  //interface helpers
+  void setFilePathString(QString const& status);
+  //bool processLoading(std::pair<bool, std::string> const& result) const;
 
   Ui::MainWindow *ui;
   Logger* m_logger;
   imas::file::BNA bna;
   //Strings
+  QString m_current_file;
   QString m_last_folder = "C:/Users/Mervish/Documents/Xenia/bna";
-  QString const m_label_file_template;
+  QString m_extract_folder;
   //Dialogs
   QFileDialog m_open_file_dialog;
   QFileDialog m_save_file_dialog;

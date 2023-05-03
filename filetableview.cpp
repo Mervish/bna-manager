@@ -2,11 +2,13 @@
 
 #include <QDrag>
 #include <QDragMoveEvent>
+#include <QHeaderView>
 #include <QMimeData>
 
 FileTableView::FileTableView(QWidget *parent)
     : QTableView(parent)
 {
+    setAcceptDrops(true);
     m_extract_file_action = m_item_menu.addAction("Extract to...");
     m_replace_file_action = m_item_menu.addAction("Replace with...");
     m_item_menu.addSeparator();
@@ -25,7 +27,9 @@ FileTableView::FileTableView(QWidget *parent)
 
 void FileTableView::dragEnterEvent(QDragEnterEvent *event)
 {
-
+  if (event->mimeData()->hasFormat(fileMimeType())) {
+    event->acceptProposedAction();
+  }
 }
 
 void FileTableView::dragMoveEvent(QDragMoveEvent *event)
@@ -40,6 +44,7 @@ void FileTableView::dragMoveEvent(QDragMoveEvent *event)
 
 void FileTableView::dropEvent(QDropEvent *event)
 {
+  
 
 }
 
@@ -85,7 +90,7 @@ void FileTableView::onItemMenu(QModelIndex const& index, QPoint const& pos) {
 
 void FileTableView::contextMenuEvent(QContextMenuEvent *event)
 {
-  auto const pos = mapToGlobal(event->pos());
+  auto const pos = mapToGlobal(event->pos()) + QPoint(0, horizontalHeader()->height());
   auto const index = indexAt(event->pos());
   if (index.isValid()) {
     onItemMenu(index, pos);

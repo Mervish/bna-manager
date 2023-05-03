@@ -18,6 +18,8 @@ public:
   signals:
   void extractionRequested(QString const& filename);
   void replacementRequested(QString const& filename);
+  //void extractionDragRequested(QString const& filename);                    //for when user drags the file from form
+  void replacementDropRequested(QString const& filename, QString const& url); //for when user drops the file into table
 
   void dataExtractionRequested(QString const& filename, QString const& key);
   void dataInjectionRequested(QString const& filename, QString const& key);

@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>194</width>
+    <width>285</width>
     <height>120</height>
    </rect>
   </property>
@@ -23,7 +23,7 @@
    <item>
     <widget class="QLabel" name="label">
      <property name="text">
-      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;Version 0.5&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;zzzzzzzzzzzzzzzzz scripts used as reference.&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;2022-2023 Mervish&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;Version 0.5&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;zzzzzzzzzzzzzzzzz - inspiration and reference scripts.&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;2022-2023 Mervish&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
      </property>
     </widget>
    </item>

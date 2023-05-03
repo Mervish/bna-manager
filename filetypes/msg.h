@@ -28,7 +28,7 @@ public:
     void saveToData(std::vector<char> &data);
     void saveToFile(const std::string &filename);
     QJsonArray getJson();
-    bool fromJson(const QJsonValue &json);
+    std::pair<bool, std::string> fromJson(const QJsonValue &json);
 
 private:
     template<class S> void openFromStream(S &stream);
