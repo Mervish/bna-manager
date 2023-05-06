@@ -37,9 +37,9 @@ static QString const fileMimeType() { return QStringLiteral("file"); }
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
       , ui(new Ui::MainWindow)
-      , m_open_file_dialog(this, "Select file to open", m_last_folder, bna_signature)
-      , m_save_file_dialog(this, "Select where to save the file", m_last_folder, "All types (*.*)")
-      , m_save_folder_dialog(this, "Select extraction folder", m_last_folder)
+      , m_open_file_dialog(this, "Select file to open")
+      , m_save_file_dialog(this, "Select where to save the file")
+      , m_folder_dialog(this, "Select extraction folder")
       , m_about_window(this)
 {
   //filetypes managers
@@ -60,7 +60,8 @@ MainWindow::MainWindow(QWidget *parent)
   m_open_file_dialog.setFileMode(QFileDialog::ExistingFile);
   m_save_file_dialog.setFileMode(QFileDialog::AnyFile);
   m_save_file_dialog.setAcceptMode(QFileDialog::AcceptSave);
-  m_save_folder_dialog.setFileMode(QFileDialog::Directory);
+  m_folder_dialog.setFileMode(QFileDialog::Directory);
+  m_folder_dialog.setNameFilter("folder");
 
   //icons
   ui->actionOpenBna->setIcon(this->style()->standardIcon(QStyle::SP_DialogOpenButton));
@@ -82,7 +83,7 @@ MainWindow::MainWindow(QWidget *parent)
   //open BNA
   connect(ui->actionOpenBna, &QAction::triggered, [this]{
     m_open_file_dialog.setNameFilter(bna_signature);
-    if(!m_open_file_dialog.exec()){      return;    }
+    if(!m_path_saver.interrogate(m_open_file_dialog)){      return;    }
     closeFile();
     openFile(m_open_file_dialog.selectedFiles().first());
   });
@@ -94,14 +95,17 @@ MainWindow::MainWindow(QWidget *parent)
   //save BNA-file as
   connect(ui->actionSave_as, &QAction::triggered, [this]{
     m_save_file_dialog.setNameFilter(bna_signature);
-    if(!m_save_file_dialog.exec()){      return;    }
+    if(!m_path_saver.interrogate(m_save_file_dialog)){      return;    }
     bna.saveToFile(m_save_file_dialog.selectedFiles().first().toStdString());
     m_logger->info("Saved as " + m_save_file_dialog.selectedFiles().first());
   });
   //pack directory into BNA
   connect(ui->actionOpenDir, &QAction::triggered, [this]{
-    auto const path = QFileDialog::getExistingDirectory(this, "Select the base directory to pack (the one containing the 'root')", m_extract_folder);
-    if(path.isEmpty()) { return; }
+    m_folder_dialog.setWindowTitle("Select the base directory to pack (the one containing the 'root')");
+    if(!m_path_saver.interrogate(m_folder_dialog)){
+        return;
+    }
+    auto const path = m_folder_dialog.selectedFiles().first();
     //we need to check if folder is not empty
     if (std::ranges::none_of(std::filesystem::recursive_directory_iterator(path.toStdString()),
                              [](std::filesystem::path const &path) {
@@ -115,7 +119,7 @@ MainWindow::MainWindow(QWidget *parent)
     m_save_file_dialog.setNameFilter(bna_signature);
     m_save_file_dialog.selectFile(path.mid(path.lastIndexOf('/') + 1, path.lastIndexOf('.') - path.lastIndexOf('/') - 1));
     //auto save_path = QFileDialog::getSaveFileName(this, "Select file to save", m_last_folder, bna_signature);
-    if(!m_save_file_dialog.exec()) { return; }
+    if(!m_path_saver.interrogate(m_save_file_dialog)) { return; }
     //if(save_path.isEmpty()){      return;    }
     imas::file::BNA packer;
     auto const save_path = m_save_file_dialog.selectedFiles().front();
@@ -126,8 +130,11 @@ MainWindow::MainWindow(QWidget *parent)
   });
   //extract all files from BNA
   connect(ui->actionExtract_all, &QAction::triggered, [this] {
-      auto const path = QFileDialog::getExistingDirectory(this, "Select directory to create the dir with the BNA contents (it will be named after BNA-file)", m_extract_folder);
-      if(path.isEmpty()) { return; }
+      m_folder_dialog.setWindowTitle("Select directory to create the dir with the BNA contents (it will be named after BNA-file)");
+      if(!m_path_saver.interrogate(m_folder_dialog)){
+          return;
+      }
+      auto const path = m_folder_dialog.selectedFiles().first();
       //get the pure filename
       auto const final_dir = path.toStdString() + '/'
                              + m_current_file.mid(m_current_file.lastIndexOf('/') + 1, m_current_file.lastIndexOf('.') - m_current_file.lastIndexOf('/') - 1).toStdString();
@@ -154,7 +161,7 @@ MainWindow::MainWindow(QWidget *parent)
     m_save_file_dialog.selectFile(filename);
     auto const type_signature = QString("Requested type (*.%1)").arg(filename.mid(filename.lastIndexOf('.') + 1));
     m_save_file_dialog.setNameFilter(type_signature);
-    if(!m_save_file_dialog.exec()) { return; }
+    if(!m_path_saver.interrogate(m_save_file_dialog)) { return; }
     bna.extractFile({m_file_table_model.currentDir().toStdString(), filename.toStdString()}, m_save_file_dialog.selectedFiles().first().toStdString());
     m_logger->info(QString("Extracted file: %1").arg(filename));
   });
@@ -163,7 +170,7 @@ MainWindow::MainWindow(QWidget *parent)
     m_open_file_dialog.selectFile(filename);
     auto const type_signature = QString("Requested type (*.%1)").arg(filename.mid(filename.lastIndexOf('.') + 1));
     m_open_file_dialog.setNameFilter(type_signature);
-    if(!m_open_file_dialog.exec()){      return;    }
+    if(!m_path_saver.interrogate(m_open_file_dialog)){      return;    }
     bna.replaceFile({m_file_table_model.currentDir().toStdString(), filename.toStdString()}, m_open_file_dialog.selectedFiles().first().toStdString());
     m_logger->info(QString("Replaced file: %1").arg(filename));
   });
@@ -173,7 +180,7 @@ MainWindow::MainWindow(QWidget *parent)
       auto &manager = m_filetypes_managers.at(key.toStdString());
       m_save_file_dialog.setNameFilter(QString::fromStdString(manager->getApi().signature));
       m_save_file_dialog.selectFile(filename.left(filename.lastIndexOf('.')));
-      if(!m_save_file_dialog.exec()) { return; }
+      if(!m_path_saver.interrogate(m_save_file_dialog)) { return; }
       auto const& file = bna.getFile({m_file_table_model.currentDir().toStdString(), filename.toStdString()});
       manager->loadFromData(file.file_data);
       if(auto const res = manager->extract(m_save_file_dialog.selectedFiles().first().toStdString()); !res.first) {
@@ -187,7 +194,7 @@ MainWindow::MainWindow(QWidget *parent)
       auto &manager = m_filetypes_managers.at(key.toStdString());
       m_open_file_dialog.setNameFilter(QString::fromStdString(manager->getApi().signature));
       m_open_file_dialog.selectFile(filename.left(filename.lastIndexOf('.')));
-      if(!m_open_file_dialog.exec()) { return; }
+      if(!m_path_saver.interrogate(m_open_file_dialog)) { return; }
       auto& file = bna.getFile({m_file_table_model.currentDir().toStdString(), filename.toStdString()});
       manager->loadFromData(file.file_data);
       //failed injection should not modify the BNA
@@ -203,7 +210,7 @@ MainWindow::MainWindow(QWidget *parent)
   //debug actions
   connect(ui->actionSCB_rebuilding_test, &QAction::triggered, [this]{
     //open the scb file
-    auto path = QFileDialog::getOpenFileName(this, "Select scb file", m_last_folder, "SCB (*.scb)");
+    auto path = QFileDialog::getOpenFileName(this, "Select scb file", "", "SCB (*.scb)");
     if(path.isEmpty()){      return;    }
     imas::file::SCB scb;
     scb.loadFromFile(path.toStdString());

@@ -37,6 +37,8 @@ set(PROJECT_SOURCES
         utility/streamtools.h
         utility/logger.h
         utility/logger.cpp
+        utility/pathsaver.h
+        utility/pathsaver.cpp
         about.h
         about.cpp
         about.ui
@@ -90,7 +92,15 @@ qt_add_executable(BNAMaster
     master/main.cpp
     filetypes/bna.h
     filetypes/bna.cpp
+    filetypes/scb.h
+    filetypes/scb.cpp
+    filetypes/msg.h
+    filetypes/msg.cpp
 )
+
+if(QT_VERSION_MAJOR EQUAL 6)
+    qt_finalize_executable(BNAManager)
+endif()
 
 if(Boost_FOUND)
     include_directories(${Boost_INCLUDE_DIRS})
