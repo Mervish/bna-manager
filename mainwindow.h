@@ -6,6 +6,7 @@
 #include "filetablemodel.h"
 #include "filetypes/manageable.h"
 #include "utility/logger.h"
+#include "utility/pathsaver.h"
 
 #include <QFileDialog>
 #include <QMainWindow>
@@ -29,6 +30,7 @@ QT_END_NAMESPACE
   * - partial
   REFACTORING IDEAS
   1. Adopt QString throughout the project
+  2. Rewrite BNA
  */
 
 class MainWindow : public QMainWindow {
@@ -53,15 +55,15 @@ private:
 
   Ui::MainWindow *ui;
   Logger* m_logger;
+  PathSaver m_path_saver;
   imas::file::BNA bna;
   //Strings
   QString m_current_file;
-  QString m_last_folder = "C:/Users/Mervish/Documents/Xenia/bna";
   QString m_extract_folder;
   //Dialogs
   QFileDialog m_open_file_dialog;
   QFileDialog m_save_file_dialog;
-  QFileDialog m_save_folder_dialog;
+  QFileDialog m_folder_dialog;
   //Misc windows
   AboutWindow m_about_window;
   //Models
