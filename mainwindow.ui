@@ -121,6 +121,7 @@
     <addaction name="actionMSG_extraction"/>
     <addaction name="actionMSG_rebuilding_test"/>
     <addaction name="actionBNA_rebuilding_test"/>
+    <addaction name="actionBXR_rebuilding_test"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuDebug"/>
@@ -196,6 +197,11 @@
   <action name="actionClose">
    <property name="text">
     <string>Close</string>
+   </property>
+  </action>
+  <action name="actionBXR_rebuilding_test">
+   <property name="text">
+    <string>BXR rebuilding test...</string>
    </property>
   </action>
  </widget>

@@ -31,6 +31,7 @@ set(PROJECT_SOURCES
         filetypes/msg.cpp
         filetypes/scb.h
         filetypes/scb.cpp
+        filetypes/bxr.h
         utility/stdhacks.h
         utility/stdhacks.cpp
         utility/datatools.h

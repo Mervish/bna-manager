@@ -1,6 +1,7 @@
 #include "mainwindow.h"
 
 #include "about.h"
+#include "filetypes/bxr.h"
 #include "filetypes/scb.h"
 
 #include <QMessageBox>
@@ -219,6 +220,12 @@ MainWindow::MainWindow(QWidget *parent)
     auto const base_info = QFileInfo(path);
     auto const savefile_base_name = base_info.absolutePath() + '/' + base_info.baseName() + "_r.scb";
     scb.saveToFile(savefile_base_name.toStdString());
+  });
+  connect(ui->actionBXR_rebuilding_test, &QAction::triggered, [this]{
+      auto path = QFileDialog::getOpenFileName(this, "Select scb file", "", "BXR (*.bxr)");
+      if(path.isEmpty()){      return;    }
+      imas::file::BXR bxr;
+      bxr.Load(path.toStdString());
   });
 
   setFilePathString(text_file_label_none);

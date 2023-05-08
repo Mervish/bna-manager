@@ -25,12 +25,12 @@ QT_END_NAMESPACE
   4. [*]Add console.
   5. [ ]Update file data in table when they are being updated.
   6. [*]Drag and drop support
-  7. [ ]File loading functions should output error messages along with the result.
+  7. [*]File loading functions should output error messages along with the result.
   ? - not tested
   * - partial
   REFACTORING IDEAS
   1. Adopt QString throughout the project
-  2. Rewrite BNA
+  2. Rewrite BNA inner file management to using simple map<dirpath,filpath> system
  */
 
 class MainWindow : public QMainWindow {

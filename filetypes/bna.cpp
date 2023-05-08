@@ -91,7 +91,6 @@ bool BNA::loadFromFile(std::string const& filename)
   auto constexpr idsize = 4;
   char idstring[idsize];
   m_stream.read(idstring, idsize);
-
   if(memcmp("BNA0", idstring, idsize)){
     //warn user via message box
     QMessageBox::critical(nullptr, title, "This file is not a valid BNA file!");
