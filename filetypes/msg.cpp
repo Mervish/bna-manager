@@ -68,7 +68,7 @@ void MSG::saveToData(std::vector<char> &data) {
     saveToStream(data_stream);
 }
 
-std::pair<bool, std::string> MSG::fromJson(QJsonValue const &json) {
+std::pair<bool, std::string> MSG::setJson(QJsonValue const &json) {
     auto const array = json.toArray();
     if (array.size() != m_entries.size()) {
         return {false, "MSG string injection error: Count mismatch. Expected " + std::to_string(m_entries.size()) + ", got " + std::to_string(array.size()) + ". Are you loading the correct file?"};
@@ -84,7 +84,7 @@ std::pair<bool, std::string> MSG::fromJson(QJsonValue const &json) {
 QJsonArray MSG::getJson() {
     QJsonArray msg_json;
     for (auto const &msg : m_entries) {
-        msg_json.append(QJsonValue(QString::fromStdU16String(msg.data)));
+        msg_json.append(QString::fromStdU16String(msg.data));
     }
     return msg_json;
 }

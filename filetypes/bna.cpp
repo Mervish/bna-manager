@@ -12,6 +12,7 @@
 #include <unordered_set>
 
 namespace  {
+#warning Dublicate code. "streamtools.h" already contains similar function. There is probably
 template<class T>
 inline void readToValue(std::ifstream &stream, T &value){
   stream.read((char *)&value, sizeof (value));
@@ -59,6 +60,8 @@ bool isBNAFileOrder(std::string const& left, std::string const& right){
   }
   return left < right;
 }
+//UPD: The order of files in BNA seems to be arbitrary. These functions served their purpose of debugging bit-precise BNA rebuilding.
+//From the point of the game it shouldn't matter in what order the header written. So perhaps these may be retired in future.
 }
 
 namespace adaptor = boost::adaptors;
@@ -66,7 +69,6 @@ namespace adaptor = boost::adaptors;
 namespace imas {
 namespace file {
 
-//Emulates Namco's weird BNA-sorting pattern
 void BNA::sortFileData()
 {
   std::ranges::sort(m_file_data, [](BNAFileEntry const& left, BNAFileEntry const& right){

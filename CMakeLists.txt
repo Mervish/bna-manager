@@ -32,6 +32,7 @@ set(PROJECT_SOURCES
         filetypes/scb.h
         filetypes/scb.cpp
         filetypes/bxr.h
+        filetypes/bxr.cpp
         utility/stdhacks.h
         utility/stdhacks.cpp
         utility/datatools.h

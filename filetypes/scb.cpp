@@ -77,7 +77,7 @@ std::pair<bool, std::string> SCB::inject(std::string const& openpath){
     return {false, "Failed to open file" + openpath};
   }
 
-  if(auto const res = m_msg_data.fromJson(QJsonDocument::fromJson(file.readAll()).array()); !res.first){
+  if(auto const res = m_msg_data.setJson(QJsonDocument::fromJson(file.readAll()).array()); !res.first){
     return res;
   }
   rebuild();

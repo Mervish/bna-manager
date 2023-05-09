@@ -225,7 +225,13 @@ MainWindow::MainWindow(QWidget *parent)
       auto path = QFileDialog::getOpenFileName(this, "Select scb file", "", "BXR (*.bxr)");
       if(path.isEmpty()){      return;    }
       imas::file::BXR bxr;
-      bxr.Load(path.toStdString());
+      bxr.load(path.toStdString());
+      //add suffix '_r' to path's filename
+      auto const base_info = QFileInfo(path);
+      //auto const savefile_base_name = base_info.absolutePath() + '/' + base_info.baseName() + "_r.bxr";
+      //bxr.save(savefile_base_name.toStdString());
+      auto const xml_save_name = base_info.absolutePath() + '/' + base_info.baseName() + ".xml";
+      bxr.writeXML(xml_save_name.toStdString());
   });
 
   setFilePathString(text_file_label_none);

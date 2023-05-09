@@ -20,13 +20,6 @@ namespace tools {
   }
 
   template<class S>
-  inline uint32_t readULong(S &stream){
-    uint32_t value;
-    stream.read((char *)&value, sizeof (value));
-    return _byteswap_ulong(value);
-  }
-
-  template<class S>
   inline int16_t readShort(S &stream){
     int16_t value;
     stream.read((char *)&value, sizeof (value));

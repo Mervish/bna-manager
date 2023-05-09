@@ -125,7 +125,7 @@ void setMasterScript(std::string const& gamepath, std::string const& scriptpath)
             if(res != script_files.end()) {
                 imas::file::SCB scb;
                 scb.loadFromData(res->get().file_data);
-                scb.msg_data().fromJson(strings_json);
+                scb.msg_data().setJson(strings_json);
                 scb.rebuild();
                 scb.saveToData(res->get().file_data);
             }
