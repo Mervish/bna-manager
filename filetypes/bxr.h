@@ -7,6 +7,18 @@
 
 #include <QJsonArray>
 
+//*********.bxr
+//1. Label("BXR0")
+//2. Size data(tag main, tag sub, main, sub, string = 5*32)
+//2. Entry data
+//2.1 Tag main
+//2.2 Tag sub
+//2.3 Main
+//2.4 Sub
+//3.String chunk
+//3.1 8 bit-wide strings(ANSI)
+//3.2 16 bit-wide strings(Japanese characters)
+
 namespace imas{
 namespace file{
 

@@ -30,7 +30,7 @@ QT_END_NAMESPACE
   * - partial
   REFACTORING IDEAS
   1. Adopt QString throughout the project
-  2. Rewrite BNA inner file management to using simple map<dirpath,filpath> system
+  2. Rewrite BNA inner file management to use simple map<dirpath,filpath> system
  */
 
 class MainWindow : public QMainWindow {

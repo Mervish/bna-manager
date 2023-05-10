@@ -56,10 +56,10 @@ namespace tools {
 
   template<class S>
   inline void evenWriteStream(S &stream, char pad_char = 0, int pad_size = 0x10){
-    auto pos = stream.tellp();
-    auto over = pos % pad_size;
+    auto const pos = stream.tellp();
+    auto const over = pos % pad_size;
     if(0 == over) { return; }
-    auto left = pad_size - over;
+    auto const left = pad_size - over;
     std::vector<char> pad(left);
     std::fill(pad.begin(), pad.end(), pad_char);
     stream.write(pad.data(), pad.size());

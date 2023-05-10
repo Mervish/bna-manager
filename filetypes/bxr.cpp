@@ -18,21 +18,19 @@ constexpr auto bxr_label = "BXR0";
 template<class T>
 uint32_t getStringSize(std::vector<T> const& evaluated) {
     return std::accumulate(evaluated.begin(), evaluated.end(), 0, [](const auto &a, const auto &b){
-        return a + (b.symbol.size() + 1);
+        return a + (-1 == b.offset_symbol ? 0 :b.symbol.size() + 1);
     });
 }
 
-uint32_t getStringSize(std::vector<imas::file::BXR::MainScriptEntry> const& evaluated) {
+uint32_t getUnicodeSize(std::vector<imas::file::BXR::MainScriptEntry> const& evaluated) {
     return std::accumulate(evaluated.begin(), evaluated.end(), 0, [](const auto &a, const imas::file::BXR::MainScriptEntry &b){
-        auto const symbol_size  = -1 == b.offset_symbol ? 0 :(b.symbol.size() + 1);
-        auto const unicode_size = -1 == b.offset_unicode ? 0 :(b.unicode.size() + 1) * 2;
-        return a + symbol_size + unicode_size;
+        return a + (-1 == b.offset_unicode ? 0 :(b.unicode.size() + 1) * 2);
     });
 }
 
 template<class T>
-void setStringData(std::vector<T>& manipulated, std::vector<char>& output) {
-    for(auto& entry: manipulated) {
+void setStringData(std::vector<T>& origin, std::vector<char>& output) {
+    for(auto& entry: origin) {
         entry->offset_symbol = output.size();
         std::ranges::copy(entry->symbol, std::back_insert_iterator(output));
         output.push_back('\0');
@@ -40,7 +38,7 @@ void setStringData(std::vector<T>& manipulated, std::vector<char>& output) {
 }
 
 template<class T>
-void putToVector(std::vector<T>& origin, std::vector<imas::file::BXR::Offsetable*>& output) {
+void insertIntoQueue(std::vector<T>& origin, std::vector<imas::file::BXR::Offsetable*>& output) {
     auto transformed_range = origin | adaptor::filtered([](T& value){
                                  return -1 != value.offset_symbol;
                              }) | adaptor::transformed([](T& value){
@@ -49,15 +47,14 @@ void putToVector(std::vector<T>& origin, std::vector<imas::file::BXR::Offsetable
     output.insert(output.end(), transformed_range.begin(), transformed_range.end());
 }
 
-void setUnicodeData(std::vector<imas::file::BXR::MainScriptEntry>& manipulated, std::vector<char>& output) {
-    for(auto& entry: manipulated) {
+void setUnicodeData(std::vector<imas::file::BXR::MainScriptEntry>& origin, std::vector<char>& output) {
+    for(auto& entry: origin) {
         if( -1 != entry.offset_unicode) {
             entry.offset_unicode = output.size();
-            auto reversed = entry.unicode;
-            for(auto& sym: reversed) {
-                _byteswap_ushort(sym);
+            for (auto &sym : entry.unicode) {
+                output.push_back(static_cast<char>((sym >> 8) & 0xFF));
+                output.push_back(static_cast<char>(sym & 0xFF));
             }
-            std::ranges::copy(reversed, std::back_insert_iterator(output));
             output.push_back('\0');
             output.push_back('\0');
         }
@@ -253,11 +250,8 @@ bool BXR::load(std::string filename)
         entry.symbol = std::string(&symbol.data()[ entry.offset_symbol ]);
     }
 
-    qInfo() << "filesize = " << std::filesystem::file_size(filename);
-    qInfo() << "calculated size = " << calculateSize();
-
     //Test output
-    for(auto const& [entry, power]: base_entry_list) {
+    /*for(auto const& [entry, power]: base_entry_list) {
         QString tag = std::string(entry->main_symbol).c_str();
         auto const symbol = QString::fromStdString(entry->symbol);
         if(!symbol.isEmpty()) {
@@ -274,16 +268,16 @@ bool BXR::load(std::string filename)
                 qInfo() << QString(power + 1, ' ') + QString("%1=%2").arg(std::string(child->sub_symbol).c_str()).arg(child->symbol.c_str());
             }
         }
-    }
+    }*/
 
-
+    qInfo() << "filesize = " << std::filesystem::file_size(filename);
+    qInfo() << "calculated size = " << calculateSize();
 
     return true;
 }
 
 void BXR::writeXML(std::string const& filename) {
-    //Test XML parsing
-    QFile file(QString::fromStdString(filename));
+    QFile file(std::filesystem::path{filename});
     if(!file.open(QIODevice::WriteOnly)){
         return;
     }
@@ -296,92 +290,81 @@ void BXR::writeXML(std::string const& filename) {
 
     for(auto iter = base_entry_list.begin(); iter != base_entry_list.end(); ++iter) {
         if (-1 != iter->first->next_ticks) {
-            auto end_brace = base_entry_list.begin() + (iter->first->next_ticks);
-            if(end_brace > base_entry_list.end()) {
-                end_brace = base_entry_list.end();
-            }
-            std::for_each(iter + 1, end_brace, [](auto& pair){
+            std::for_each(iter + 1, base_entry_list.begin() + iter->first->next_ticks, [](auto& pair){
                 ++pair.second;
             });
         }
     }
 
-    auto iter = base_entry_list.begin();
-    while (iter != base_entry_list.end()) {
+    for (auto iter = base_entry_list.begin(); iter != base_entry_list.end(); ++iter) {
         auto const &[entry, power] = *iter;
-        auto const symbol = QString::fromStdString(entry->symbol);
-        auto const unicode = QString::fromStdU16String(entry->unicode);
         stream.writeStartElement(QString::fromStdString(std::string(entry->main_symbol)));
-        if (!symbol.isEmpty()) {
-            stream.writeAttribute("symbol", symbol);
+        if (-1 != entry->offset_symbol) {
+            stream.writeAttribute("symbol", entry->symbol);
         }
-        if (!unicode.isEmpty()) {
-            stream.writeAttribute("unicode", unicode);
+        if (-1 != entry->offset_unicode) {
+            stream.writeAttribute("unicode", entry->unicode);
         }
-        if (!entry->subscript_children.empty()) {
-            for (auto child : entry->subscript_children) {
-                stream.writeTextElement(child->sub_symbol, child->symbol);
-            }
-            //stream.writeEndElement();
+        for (auto child : entry->subscript_children) {
+            stream.writeTextElement(child->sub_symbol, child->symbol);
         }
-        auto const next = iter + 1;
-        if (next != base_entry_list.end()) {
-            auto power_diff = iter->second - next->second;
-            if (power_diff >= 0) {
+        //Compare power of the next element to understand when it's time to step out
+        if (auto const next = iter + 1; next != base_entry_list.end()) {
+            if (auto const power_diff = power - next->second; power_diff >= 0) {
                 stream.writeEndElement();
                 for (int d = 0; d < power_diff; ++d) {
                     stream.writeEndElement();
                 }
             }
         }
-        ++iter;
     }
     stream.writeEndDocument();
 }
 
 uint32_t BXR::calculateStringSize()
 {
-    return getStringSize(tag_main) + getStringSize(tag_sub) + getStringSize(main_script)
-           + getStringSize(sub_script) + 1;
+    auto string_count = getStringSize(tag_main) + getStringSize(tag_sub) + getStringSize(main_script)
+        + getStringSize(sub_script);
+    if(string_count % 2) {
+        ++string_count;
+    }
+    return string_count + getUnicodeSize(main_script);
 }
 
 uint32_t BXR::calculateSize() {
-    uint32_t str_tag_main = getStringSize(tag_main);
-    uint32_t str_tag_sub = getStringSize(tag_sub);
-    uint32_t str_main = getStringSize(main_script);
-    uint32_t str_sub = getStringSize(sub_script);
-
-    uint32_t const string_size = str_tag_main + str_tag_sub + str_main + str_sub + 1; //The string chunk has one extra terminating zero
+    uint32_t const string_size = calculateStringSize();
     uint32_t label = 4;                             //label
     uint32_t offsets = (5 * 4);                        //offsets
     uint32_t tag_m = (4 * tag_main.size()); //Tag data (1 param = 8 bit)
     uint32_t tag_s = (4 * tag_sub.size());  //
     uint32_t main = (4 * 7 * main_script.size());
     uint32_t sub = (4 * 3 * sub_script.size());
-    uint32_t strings = string_size;
-    return label + offsets + tag_m + tag_s + main + sub + strings;
+    return label + offsets + tag_m + tag_s + main + sub + string_size;
 }
 
 void BXR::save(const std::string& filename) {
     std::ofstream stream(filename, std::ios_base::binary);
 
     //1. Let's start building the string chunk
-    std::vector<Offsetable*> offset_map;
+    std::vector<Offsetable*> offset_queue;
 
-    putToVector(tag_main, offset_map);
-    putToVector(tag_sub, offset_map);
-    putToVector(main_script, offset_map);
-    putToVector(sub_script, offset_map);
+    insertIntoQueue(tag_main, offset_queue);
+    insertIntoQueue(tag_sub, offset_queue);
+    insertIntoQueue(main_script, offset_queue);
+    insertIntoQueue(sub_script, offset_queue);
 
-    std::ranges::sort(offset_map, [](Offsetable const* left, Offsetable const* right){
+    std::ranges::sort(offset_queue, [](Offsetable const* left, Offsetable const* right){
         return left->offset_symbol < right->offset_symbol;
     });
 
     std::vector<char> string_library;
     string_library.reserve(calculateStringSize());
-    setStringData(offset_map, string_library);
+    setStringData(offset_queue, string_library);
+    //Even the stream before writing unicode part
+    if(string_library.size() % 2) {
+        string_library.push_back('\0');
+    }
     setUnicodeData(main_script, string_library);
-    string_library.push_back('\0'); //Additional terminating symbol
 
     //Write label
     std::string label{bxr_label};

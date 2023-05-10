@@ -228,10 +228,10 @@ MainWindow::MainWindow(QWidget *parent)
       bxr.load(path.toStdString());
       //add suffix '_r' to path's filename
       auto const base_info = QFileInfo(path);
-      //auto const savefile_base_name = base_info.absolutePath() + '/' + base_info.baseName() + "_r.bxr";
-      //bxr.save(savefile_base_name.toStdString());
-      auto const xml_save_name = base_info.absolutePath() + '/' + base_info.baseName() + ".xml";
-      bxr.writeXML(xml_save_name.toStdString());
+      auto const savefile_base_name = base_info.absolutePath() + '/' + base_info.baseName() + "_r.bxr";
+      bxr.save(savefile_base_name.toStdString());
+      //auto const xml_save_name = base_info.absolutePath() + '/' + base_info.baseName() + ".xml";
+      //bxr.writeXML(xml_save_name.toStdString());
   });
 
   setFilePathString(text_file_label_none);
@@ -252,14 +252,6 @@ void MainWindow::enableBNAActions(bool enable) {
 void MainWindow::setFilePathString(QString const& status) {
   ui->FileLabel->setText(QString("current file: %1").arg(status));
 }
-
-/*bool MainWindow::processLoading(const std::pair<bool, std::string>& result) const
-{
-  if(!result.first){
-    m_logger->error(QString::fromStdString(result.second));
-  }
-  return result.first;
-}*/
 
 void MainWindow::openFile(const QString &filename)
 {
