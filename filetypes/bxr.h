@@ -1,11 +1,14 @@
 #pragma once
 
-#include <numeric>
-#include <vector>
-#include <string>
+#include <filesystem>
 #include <fstream>
+#include <numeric>
+#include <string>
+#include <vector>
 
 #include <QJsonArray>
+
+//#define BXR_DEBUG_LINKS
 
 //*********.bxr
 //1. Label("BXR0")
@@ -19,68 +22,93 @@
 //3.1 8 bit-wide strings(ANSI)
 //3.2 16 bit-wide strings(Japanese characters)
 
-namespace imas{
-namespace file{
+namespace imas {
+namespace file {
 
 class BXR
 {
 public:
-    struct Offsetable
-    {
-        int32_t offset_symbol;
-        std::string symbol;
+    std::pair<bool, std::string> load(std::filesystem::path const& filepath);
+    std::pair<bool, std::string> save(std::filesystem::path const& filepath);
+
+    void reset();
+
+    //QJsonArray getJson();
+    //std::pair<bool, std::string> setJson(const QJsonValue &json);
+
+    std::pair<bool, std::string> readXML(std::filesystem::path const& filepath);
+    std::pair<bool, std::string> writeXML(std::filesystem::path const& filepath);
+
+  private:
+    struct Offsetable {
+      //raw data
+      int32_t offset = -1;
+      //convenience data
+      std::string symbol;
     };
 
+#ifdef BXR_DEBUG_LINKS
     template<class T>
     struct OffsetData : Offsetable
-	{
-        std::vector<T*> children;
-	};
+    {
+        std::vector<T *> children;
+    };
+#endif
 
     struct MainScriptEntry;
 
-    struct SubScriptEntry : Offsetable
-    {
-        int data_tag;	// tag_subScriptへ
+    struct OffsetTaggable : Offsetable {
+        //raw data
+        int data_tag = -1;               //index of a tag in a related tag list
+        //convenience data
+        std::string_view tag_view;
+    };
+
+    struct SubScriptEntry : OffsetTaggable {
         int next;
-        std::string_view sub_symbol;
+#ifdef BXR_DEBUG_LINKS
         std::optional<MainScriptEntry*> parent;
+#endif
     };
 
-    struct MainScriptEntry : Offsetable
+    struct MainScriptEntry : OffsetTaggable
     {
-        int before;
-        int data_tag;
-        int index_sub_script;
-        int next;
-        int next_ticks;
-        int offset_unicode;		// 歌詞
-
-        std::string_view main_symbol;		// dataTag
-        std::u16string unicode;			// 歌詞
-
-        std::vector<MainScriptEntry*> children;
-        std::vector<SubScriptEntry*> subscript_children;
+        //raw data
+        int before = -1;             //Previous element, seems to be lineary incresiable
+        int index_sub_item = -1;     //Index of the first subitem element. Amount of child elements decided by the subitem's 'next' field
+        int next;               //Next element, seems to be lineary as well
+        int next_ticks;         //Denotes the element starting the next tag. Aka, all elements between this and 'next_ticks' ones are children of this.
+        int offset_unicode = -1;     //Points to the unicode string
+        //convenience data
+        int power = 0;              //denoutes the level in the hierarchy. Derived from the 'next_ticks'
+        std::u16string unicode;
+#ifdef BXR_DEBUG_LINKS
+        std::vector<MainScriptEntry *> children;
+#endif
+        std::vector<SubScriptEntry *> subscript_children;
     };
 
-    bool load( std::string filename );
-    void save(std::string const& filename);
+#ifdef BXR_DEBUG_LINKS
+    std::vector<OffsetData<MainScriptEntry>> tag_main;
+    std::vector<OffsetData<SubScriptEntry>> tag_sub;
+#else
+    std::vector<Offsetable> m_main_tags;
+    std::vector<Offsetable> m_sub_tags;
+#endif
 
-    QJsonArray getJson();
-    std::pair<bool, std::string> setJson(const QJsonValue &json);
+    std::vector<MainScriptEntry> m_main_items;
+    std::vector<SubScriptEntry> m_sub_items;
+    std::string m_property_name = "symbol";
 
-    void writeXML(const std::string& filename);
-private:
-    std::vector<OffsetData<MainScriptEntry>> tag_main; // ダンス内の場合はroot/beat/data/start/words/camera/faces
-    std::vector<OffsetData<SubScriptEntry>> tag_sub;  // ダンス内の場合はparam*/main_vocal_part/start_dance/start_title/wait/font/position_start/scale_x/rate* 等
-    std::vector<MainScriptEntry> main_script;
-    std::vector<SubScriptEntry> sub_script;
-    MainScriptEntry* root;
-    std::vector<std::reference_wrapper<MainScriptEntry>> unicode_containing_entries;
-
-    uint32_t calculateSize();
-    uint32_t calculateStringSize();
+    //size calculation
+    uint32_t getUnicodeSize() const;
+    uint32_t calculateSize() const;
+    uint32_t calculateStringSize() const;
+    //rebuilding
+    void setUnicodeData(std::vector<char>& output);
+    template<class T>
+    void insertIntoQueue(std::vector<T>& origin, std::vector<imas::file::BXR::Offsetable*>& output);
 };
 
-}   // namespace file
-}	// namespace imas
+} // namespace file
+} // namespace imas

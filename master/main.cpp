@@ -138,8 +138,7 @@ void setMasterScript(std::string const& gamepath, std::string const& scriptpath)
 
 int main(int argc, char *argv[])
 {
-    switch (argc)
-    {
+    switch (argc) {
     case 2:
     {
         auto const game_path = argv[1];

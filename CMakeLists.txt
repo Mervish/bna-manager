@@ -101,7 +101,18 @@ qt_add_executable(BNAMaster
 )
 
 if(QT_VERSION_MAJOR EQUAL 6)
-    qt_finalize_executable(BNAManager)
+    qt_finalize_executable(BNAMaster)
+endif()
+
+qt_add_executable(bxrconvert
+    WIN32
+    bxrconvert/main.cpp
+    filetypes/bxr.h
+    filetypes/bxr.cpp
+)
+
+if(QT_VERSION_MAJOR EQUAL 6)
+    qt_finalize_executable(bxrconvert)
 endif()
 
 if(Boost_FOUND)

@@ -31,6 +31,7 @@ QT_END_NAMESPACE
   REFACTORING IDEAS
   1. Adopt QString throughout the project
   2. Rewrite BNA inner file management to use simple map<dirpath,filpath> system
+  3. Adopt std::filesystem::path throughout the project
  */
 
 class MainWindow : public QMainWindow {
