@@ -12,6 +12,8 @@ namespace adaptor = boost::adaptors;
 
 namespace {
 constexpr auto bxr_label = "BXR0";
+constexpr auto unicode_literal = "unicode";
+constexpr auto type_hack_literal = "type_hack";
 
 template<class T>
 uint32_t getStringSize(std::vector<T> const& evaluated) {
@@ -231,10 +233,16 @@ std::pair<bool, std::string> BXR::writeXML(std::filesystem::path const &filepath
             xml_writer.writeAttribute(m_property_name, entry->symbol);
         }
         if (-1 != entry->offset_unicode) {
-            xml_writer.writeAttribute("unicode", entry->unicode);
+            xml_writer.writeAttribute(unicode_literal, entry->unicode);
         }
         for (auto child : entry->subscript_children) {
-            xml_writer.writeTextElement(child->tag_view, child->symbol);
+            if (child->symbol.empty()) {
+                xml_writer.writeStartElement(child->tag_view);
+                xml_writer.writeAttribute(type_hack_literal, "sub");
+                xml_writer.writeEndElement();
+            } else {
+                xml_writer.writeTextElement(child->tag_view, child->symbol);
+            }
         }
         //Compare power of the next element to understand when it's time to step out
         if (auto const next = iter + 1; next != base_entry_list.end()) {
@@ -252,23 +260,34 @@ std::pair<bool, std::string> BXR::writeXML(std::filesystem::path const &filepath
 
 std::pair<bool, std::string> BXR::readXML(std::filesystem::path const& filepath)
 {
-    auto const processAtributes = [this](QXmlStreamAttributes const& attributes) -> std::pair<std::string, std::u16string> {
-        if(attributes.empty()) {
-            return {};
-        }
-        std::string value;
-        std::u16string unicode;
-        for(auto const& attribute: attributes) {
-            if(QString("unicode") == attribute.name()) {
-                unicode = attribute.value().toString().toStdU16String();
-            }else{
-                m_property_name = attribute.name().toString().toStdString();
-                value = attribute.value().toString().toStdString();
-            }
-        }
-        return {value, unicode};
-    };
+    auto const processAtributes = [this](QXmlStreamAttributes const& attributes)
+        -> std::tuple<std::string, std::u16string, CandidateType> {
+      auto type = CandidateType::main;
+      if (attributes.empty()) {
+        return {{}, {}, type};
+      }
+      std::string value;
+      std::u16string unicode;
 
+      for (auto const& attribute : attributes) {
+        if (QString(unicode_literal) == attribute.name()) {
+          unicode = attribute.value().toString().toStdU16String();
+          continue;
+        }
+        if (QString(type_hack_literal) == attribute.name()) {
+          if (attribute.value() == QString("sub")) {
+            type = CandidateType::sub;
+          }
+          /*if(attribute.value() == QString("main")){
+            type = CandidateType::main;
+          }*/
+          continue;
+        }
+        m_property_name = attribute.name().toString().toStdString();
+        value = attribute.value().toString().toStdString();
+      }
+      return {value, unicode, type};
+    };
     reset();
     QFile file(filepath);
     if (!file.open(QIODevice::ReadOnly)) {
@@ -288,8 +307,8 @@ std::pair<bool, std::string> BXR::readXML(std::filesystem::path const& filepath)
        case QXmlStreamReader::StartElement:
        {
             ++power;
-            auto const [value, unicode] = processAtributes(xml_reader.attributes());
-            candidates.emplace_back(Candidate{.tag = xml_reader.name().toString().toStdString(), .value = value, .unicode = unicode, .power = power, .type = CandidateType::main});
+            auto const [value, unicode, type] = processAtributes(xml_reader.attributes());
+            candidates.emplace_back(Candidate{.tag = xml_reader.name().toString().toStdString(), .value = value, .unicode = unicode, .power = power, .type = type});
        }
             break;
        case QXmlStreamReader::EndElement:
@@ -415,7 +434,6 @@ std::pair<bool, std::string> BXR::readXML(std::filesystem::path const& filepath)
          });
          item.subscript_children.back()->next = -1;
     }
-
     return {true,""};
 }
 
