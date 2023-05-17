@@ -39,6 +39,7 @@ set(PROJECT_SOURCES
         utility/streamtools.h
         utility/logger.h
         utility/logger.cpp
+        utility/path.h
         utility/pathsaver.h
         utility/pathsaver.cpp
         about.h
@@ -48,37 +49,30 @@ set(PROJECT_SOURCES
         filetablemodel.cpp
         filetableview.h
         filetableview.cpp
-        bnacommontypes.h
 )
 
 set(APP_VERSION 0.5)
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
-    qt_add_executable(BNAManager
+    qt_add_executable(BNATool
         WIN32
         ${PROJECT_SOURCES}
     )
-# Define target properties for Android with Qt 6 as:
-#    set_property(TARGET BNAManager APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR
-#                 ${CMAKE_CURRENT_SOURCE_DIR}/android)
-# For more information, see https://doc.qt.io/qt-6/qt-add-executable.html#target-creation
 else()
     if(ANDROID)
-        add_library(BNAManager SHARED
+        add_library(BNATool SHARED
             ${PROJECT_SOURCES}
         )
-# Define properties for Android with Qt 5 after find_package() calls as:
-#    set(ANDROID_PACKAGE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/android")
     else()
-        add_executable(BNAManager
+        add_executable(BNATool
             ${PROJECT_SOURCES}
         )
     endif()
 endif()
 
-target_link_libraries(BNAManager PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
+target_link_libraries(BNATool PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
 
-set_target_properties(BNAManager PROPERTIES
+set_target_properties(BNATool PROPERTIES
     OUTPUT_NAME BNATool
     MACOSX_BUNDLE_GUI_IDENTIFIER my.example.com
     MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
@@ -86,12 +80,12 @@ set_target_properties(BNAManager PROPERTIES
 )
 
 if(QT_VERSION_MAJOR EQUAL 6)
-    qt_finalize_executable(BNAManager)
+    qt_finalize_executable(BNATool)
 endif()
 
 qt_add_executable(BNAMaster
     WIN32
-    master/main.cpp
+    tools/master.cpp
     filetypes/bna.h
     filetypes/bna.cpp
     filetypes/scb.h
@@ -106,7 +100,7 @@ endif()
 
 qt_add_executable(bxrconvert
     WIN32
-    bxrconvert/main.cpp
+    tools/bxrconvert.cpp
     filetypes/bxr.h
     filetypes/bxr.cpp
 )
@@ -115,10 +109,23 @@ if(QT_VERSION_MAJOR EQUAL 6)
     qt_finalize_executable(bxrconvert)
 endif()
 
+qt_add_executable(bnaunpack
+    WIN32
+    tools/bnaunpack.cpp
+    filetypes/bna.h
+    filetypes/bna.cpp
+)
+
+target_link_libraries(bnaunpack PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
+
+if(QT_VERSION_MAJOR EQUAL 6)
+    qt_finalize_executable(bnaunpack)
+endif()
+
 if(Boost_FOUND)
     include_directories(${Boost_INCLUDE_DIRS})
     #add_executable(progname file1.cxx file2.cxx)
-    target_link_libraries(BNAManager ${Boost_LIBRARIES})
+    target_link_libraries(BNATool ${Boost_LIBRARIES})
     target_link_libraries(BNAMaster ${Boost_LIBRARIES})
 endif()
 

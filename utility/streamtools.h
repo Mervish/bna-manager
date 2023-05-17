@@ -6,7 +6,7 @@
 #include <ranges>
 
 namespace imas {
-namespace tools {
+namespace utility {
   inline void readToValue(std::ifstream &stream, int32_t &value){
     stream.read((char *)&value, sizeof (value));
     value = _byteswap_ulong(value);

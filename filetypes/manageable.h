@@ -6,6 +6,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <filesystem>
 
 namespace imas {
 namespace file {
@@ -24,12 +25,12 @@ public:
     fileapi const getApi() const { return m_api; }
     //initialisation methods
     virtual void loadFromData(std::vector<char> const &data) = 0;
-    virtual void loadFromFile(const std::string &filename) = 0;
+    virtual void loadFromFile(std::filesystem::path const& filename) = 0;
     virtual void saveToData(std::vector<char> &data) = 0;
-    virtual void saveToFile(const std::string &filename) = 0;
+    virtual void saveToFile(std::filesystem::path const& filename) = 0;
     //virtual methods
-    virtual std::pair<bool, std::string> extract(std::string const& savepath) = 0;
-    virtual std::pair<bool, std::string> inject(std::string const& openpath) = 0;
+    virtual std::pair<bool, std::string> extract(std::filesystem::path const& savepath) = 0;
+    virtual std::pair<bool, std::string> inject(std::filesystem::path const& openpath) = 0;
 
 protected:
     fileapi m_api;

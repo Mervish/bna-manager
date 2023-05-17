@@ -10,6 +10,7 @@
 #include <boost/range/adaptors.hpp>
 
 #include "./ui_mainwindow.h"
+#include "utility/path.h"
 
 namespace adaptor = boost::adaptors;
 
@@ -45,6 +46,7 @@ MainWindow::MainWindow(QWidget *parent)
 {
   //filetypes managers
   registerManager<imas::file::SCB>();
+  registerManager<imas::file::BXR>();
 
   ui->setupUi(this);
   setAcceptDrops(true);
@@ -81,7 +83,6 @@ MainWindow::MainWindow(QWidget *parent)
   });
 
   //BNA actions
-  //open BNA
   connect(ui->actionOpenBna, &QAction::triggered, [this]{
     m_open_file_dialog.setNameFilter(bna_signature);
     if(!m_path_saver.interrogate(m_open_file_dialog)){      return;    }
@@ -90,10 +91,9 @@ MainWindow::MainWindow(QWidget *parent)
   });
   connect(ui->actionClose, &QAction::triggered, [this]{
     closeFile();
-    m_logger->info(QString("File %1 closed.").arg(m_current_file));
+    m_logger->info(QString("File %1 closed.").arg(m_current_file.string().c_str()));
     m_current_file.clear();
   });
-  //save BNA-file as
   connect(ui->actionSave_as, &QAction::triggered, [this]{
     m_save_file_dialog.setNameFilter(bna_signature);
     if(!m_path_saver.interrogate(m_save_file_dialog)){      return;    }
@@ -106,28 +106,21 @@ MainWindow::MainWindow(QWidget *parent)
     if(!m_path_saver.interrogate(m_folder_dialog)){
         return;
     }
-    auto const path = m_folder_dialog.selectedFiles().first();
-    //we need to check if folder is not empty
-    if (std::ranges::none_of(std::filesystem::recursive_directory_iterator(path.toStdString()),
-                             [](std::filesystem::path const &path) {
-                                 return std::filesystem::is_regular_file(path);
-                             })) {
+    std::filesystem::path const path = m_folder_dialog.selectedFiles().first().toStdString();
+    if (imas::path::isEmptyRecursive(path)) {
         QMessageBox::warning(this,
                              "BNA packing",
-                             QString("Directory %1 contains no files.").arg(path));
+                             QString("Directory %1 contains no files or subfiles.").arg(path.string().c_str()));
         return;
     }
     m_save_file_dialog.setNameFilter(bna_signature);
-    m_save_file_dialog.selectFile(path.mid(path.lastIndexOf('/') + 1, path.lastIndexOf('.') - path.lastIndexOf('/') - 1));
-    //auto save_path = QFileDialog::getSaveFileName(this, "Select file to save", m_last_folder, bna_signature);
+    m_save_file_dialog.selectFile(path.stem().string().c_str());
     if(!m_path_saver.interrogate(m_save_file_dialog)) { return; }
-    //if(save_path.isEmpty()){      return;    }
     imas::file::BNA packer;
     auto const save_path = m_save_file_dialog.selectedFiles().front();
-    packer.loadFromDir(path.toStdString());
+    packer.loadFromDir(path);
     packer.saveToFile(save_path.toStdString());
     m_logger->info(QString("Packed BNA to: %1").arg(save_path));
-    m_extract_folder = path;
   });
   //extract all files from BNA
   connect(ui->actionExtract_all, &QAction::triggered, [this] {
@@ -135,13 +128,9 @@ MainWindow::MainWindow(QWidget *parent)
       if(!m_path_saver.interrogate(m_folder_dialog)){
           return;
       }
-      auto const path = m_folder_dialog.selectedFiles().first();
-      //get the pure filename
-      auto const final_dir = path.toStdString() + '/'
-                             + m_current_file.mid(m_current_file.lastIndexOf('/') + 1, m_current_file.lastIndexOf('.') - m_current_file.lastIndexOf('/') - 1).toStdString();
-      //check if folder exists
+      auto const final_dir = m_folder_dialog.selectedFiles().first().toStdString() + '/'
+                             + m_current_file.stem().string();
       if (std::filesystem::exists(final_dir)) {
-          //prompt user
           if (QMessageBox::No
               == QMessageBox::question(
                   this,
@@ -152,12 +141,10 @@ MainWindow::MainWindow(QWidget *parent)
           }
           std::filesystem::remove_all(final_dir);
       }
-      bna.extractAll(final_dir);
+      bna.extractToDir(final_dir);
       m_logger->info(QString("Extracted BNA to: %1").arg(QString::fromStdString(final_dir)));
-      m_extract_folder = path;
   });
   //table actions
-  //extract file
   connect(ui->fileTableView, &FileTableView::extractionRequested, [this](QString const& filename){
     m_save_file_dialog.selectFile(filename);
     auto const type_signature = QString("Requested type (*.%1)").arg(filename.mid(filename.lastIndexOf('.') + 1));
@@ -166,7 +153,6 @@ MainWindow::MainWindow(QWidget *parent)
     bna.extractFile({m_file_table_model.currentDir().toStdString(), filename.toStdString()}, m_save_file_dialog.selectedFiles().first().toStdString());
     m_logger->info(QString("Extracted file: %1").arg(filename));
   });
-  //replace file
   connect(ui->fileTableView, &FileTableView::replacementRequested, [this](QString const& filename){
     m_open_file_dialog.selectFile(filename);
     auto const type_signature = QString("Requested type (*.%1)").arg(filename.mid(filename.lastIndexOf('.') + 1));
@@ -188,7 +174,6 @@ MainWindow::MainWindow(QWidget *parent)
           m_logger->error(QString::fromStdString(res.second));
           return;
       }
-      //extraction is a simple one-way process
       m_logger->info(QString("Extracted data from %1 to %2").arg(filename, m_save_file_dialog.selectedFiles().first()));
   });
   connect(ui->fileTableView, &FileTableView::dataInjectionRequested, [this](QString const& filename, QString const& key){
@@ -211,27 +196,22 @@ MainWindow::MainWindow(QWidget *parent)
   //debug actions
   connect(ui->actionSCB_rebuilding_test, &QAction::triggered, [this]{
     //open the scb file
-    auto path = QFileDialog::getOpenFileName(this, "Select scb file", "", "SCB (*.scb)");
-    if(path.isEmpty()){      return;    }
+    auto path_string = QFileDialog::getOpenFileName(this, "Select scb file", "", "SCB (*.scb)");
+    if(path_string.isEmpty()){      return;    }
+    auto const path = std::filesystem::path(path_string.toStdString());
     imas::file::SCB scb;
-    scb.loadFromFile(path.toStdString());
+    scb.loadFromFile(path);
     scb.rebuild();
-    //add suffix '_r' to path's filename
-    auto const base_info = QFileInfo(path);
-    auto const savefile_base_name = base_info.absolutePath() + '/' + base_info.baseName() + "_r.scb";
-    scb.saveToFile(savefile_base_name.toStdString());
+    scb.saveToFile(imas::path::applySuffix(path, "_r").string());
   });
   connect(ui->actionBXR_rebuilding_test, &QAction::triggered, [this]{
-      auto path = QFileDialog::getOpenFileName(this, "Select scb file", "", "BXR (*.bxr)");
-      if(path.isEmpty()){      return;    }
+      auto path_string = QFileDialog::getOpenFileName(this, "Select scb file", "", "BXR (*.bxr)");
+      if(path_string.isEmpty()){      return;    }
       imas::file::BXR bxr;
-      bxr.load(path.toStdString());
-      //add suffix '_r' to path's filename
-      auto const base_info = QFileInfo(path);
-      auto const savefile_base_name = base_info.absolutePath() + '/' + base_info.baseName() + "_r.bxr";
-      //bxr.save(savefile_base_name.toStdString());
-      auto const xml_save_name = base_info.absolutePath() + '/' + base_info.baseName() + ".xml";
-      bxr.writeXML(xml_save_name.toStdString());
+      auto const path = std::filesystem::path(path_string.toStdString());
+      bxr.loadFromFile(path);
+      //bxr.save(imas::path::applySuffix(path, "_r").string());
+      bxr.writeXML(imas::path::changeExtension(path, "xml"));
   });
 
   setFilePathString(text_file_label_none);
@@ -286,10 +266,10 @@ void MainWindow::openFile(const QString &filename)
     }
     //Let's set files, if any
     //Model initialisation should be inside the model.
-    auto file_data_range = header | adaptor::filtered([off = off](BNAFileEntry const &entry) {
+    auto file_data_range = header | adaptor::filtered([off = off](imas::file::BNAFileEntry const &entry) {
                                return off == entry.offsets.dir_name.offset;
                            })
-                           | adaptor::transformed([](BNAFileEntry const &entry) {
+                           | adaptor::transformed([](imas::file::BNAFileEntry const &entry) {
                                  return imas::model::FileData(QString::fromStdString(entry.file_name),
                                                  entry.offsets.file_data.size);
                              });
@@ -301,7 +281,7 @@ void MainWindow::openFile(const QString &filename)
   }
 
   ui->folderTreeView->expandAll();
-  m_current_file = filename;
+  m_current_file = filename.toStdString();
   m_logger->info(QString("File loaded: %1").arg(filename));
 }
 

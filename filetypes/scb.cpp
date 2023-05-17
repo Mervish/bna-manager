@@ -6,7 +6,6 @@
 #include <QDebug>
 
 #include <QFile>
-#include <filesystem>
 #include <fstream>
 #include <ranges>
 
@@ -35,7 +34,21 @@ SCB::SCB()
              .injection_title = "Insert string..."};
 }
 
-void SCB::loadFromFile(const std::string &filename) {
+void SCB::loadFromData(const std::vector<char> &data) {
+    boost::iostreams::array_source asource(data.data(), data.size());
+    boost::iostreams::stream<boost::iostreams::array_source> data_stream{asource};
+    openFromStream(data_stream);
+}
+
+void SCB::saveToData(std::vector<char> &data)
+{
+    data.resize(calculateSize());
+    boost::iostreams::array_sink asink(data.data(), data.size());
+    boost::iostreams::stream<boost::iostreams::array_sink> data_stream{asink};
+    saveToStream(data_stream);
+}
+
+void SCB::loadFromFile(const std::filesystem::path& filename) {
   std::ifstream stream(filename, std::ios_base::binary);
   if (!stream.is_open()) {
     return;
@@ -43,25 +56,20 @@ void SCB::loadFromFile(const std::string &filename) {
   openFromStream(stream);
 }
 
-void SCB::saveToData(std::vector<char> &data)
+void SCB::saveToFile(const std::filesystem::path& filename)
 {
-  data.resize(calculateSize());
-  boost::iostreams::array_sink asink(data.data(), data.size());
-  boost::iostreams::stream<boost::iostreams::array_sink> data_stream{asink};
-  saveToStream(data_stream);
-}
-
-void SCB::loadFromData(const std::vector<char> &data) {
-  boost::iostreams::array_source asource(data.data(), data.size());
-  boost::iostreams::stream<boost::iostreams::array_source> data_stream{asource};
-  openFromStream(data_stream);
+  std::ofstream stream(filename, std::ios_base::binary);
+  if(!stream.is_open()){
+    return;
+  }
+  saveToStream(stream);
 }
 
 MSG &SCB::msg_data() { return m_msg_data; }
 
-std::pair<bool, std::string> SCB::extract(const std::string &savepath){
+std::pair<bool, std::string> SCB::extract(std::filesystem::path const& savepath){
   auto const data = QJsonDocument(m_msg_data.getJson()).toJson();
-  QFile file(QString::fromStdString(savepath));
+  QFile file(savepath);
   if (!file.open(QIODevice::WriteOnly | QIODevice::Text)){
     return {false, "Failed to open file"};
   }
@@ -71,10 +79,10 @@ std::pair<bool, std::string> SCB::extract(const std::string &savepath){
   return {true, ""};
 }
 
-std::pair<bool, std::string> SCB::inject(std::string const& openpath){
-  QFile file(QString::fromStdString(openpath));
+std::pair<bool, std::string> SCB::inject(std::filesystem::path const& openpath){
+  QFile file(openpath);
   if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-    return {false, "Failed to open file" + openpath};
+    return {false, "Failed to open file" + openpath.string()};
   }
 
   if(auto const res = m_msg_data.setJson(QJsonDocument::fromJson(file.readAll()).array()); !res.first){
@@ -91,8 +99,8 @@ template <class S> void SCB::openFromStream(S &stream) {
 
   for (auto section : m_sections_agg) {
     stream.read(section->label, sizeof(ScbSection::label));
-    section->size = imas::tools::readLong(stream);
-    section->offset = imas::tools::readLong(stream);
+    section->size = imas::utility::readLong(stream);
+    section->offset = imas::utility::readLong(stream);
     stream.ignore(4);
   }
   std::ranges::sort(m_sections_agg, [](ScbSection *left, ScbSection *right) {
@@ -107,15 +115,6 @@ template <class S> void SCB::openFromStream(S &stream) {
 
   //Testing
   updateSectionData();
-}
-
-void SCB::saveToFile(const std::string &filename)
-{
-  std::ofstream stream(filename, std::ios_base::binary);
-  if(!stream.is_open()){
-    return;
-  }
-  saveToStream(stream);
 }
 
 void SCB::rebuild()
@@ -165,31 +164,31 @@ void SCB::saveToStream(S &stream)
 {
   //Let's fill header
   stream.write("SCB", 3);
-  tools::padStream(stream, 0, 8);
+  utility::padStream(stream, 0, 8);
   stream.put(0x45);
-  tools::padStream(stream, 0, 3);
+  utility::padStream(stream, 0, 3);
   stream.put(0x45);
   int32_t const size = calculateSize() - 0x20;
-  tools::writeLong(stream, size);
+  utility::writeLong(stream, size);
   stream.write(m_header_cache.data(), m_header_cache.size());
   //Writing section header
   for(auto section: m_sections_agg) {
     stream.write(section->label, sizeof(ScbSection::label));
-    imas::tools::writeLong(stream, section->size);
-    imas::tools::writeLong(stream, section->offset);
-    imas::tools::padStream(stream, post_MSG_padding_literal, 4);
+    imas::utility::writeLong(stream, section->size);
+    imas::utility::writeLong(stream, section->offset);
+    imas::utility::padStream(stream, post_MSG_padding_literal, 4);
   }
   //Writing section data
   bool post_msg = false;
   for(auto section: m_sections_agg) {
       stream.write(section->data.data(), section->data.size());
-      imas::tools::evenWriteStream(stream, post_msg ? post_MSG_padding_literal : pre_MSG_padding_literal);
+      imas::utility::evenWriteStream(stream, post_msg ? post_MSG_padding_literal : pre_MSG_padding_literal);
       if(section == &m_sections.MSG){
           post_msg = true;
       }
   }
   //Finalizing
-  tools::evenWriteStream(stream, post_MSG_padding_literal);
+  utility::evenWriteStream(stream, post_MSG_padding_literal);
 }
 
 } // namespace file

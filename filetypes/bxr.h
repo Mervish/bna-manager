@@ -1,5 +1,6 @@
 #pragma once
 
+#include "filetypes/manageable.h"
 #include <filesystem>
 #include <fstream>
 #include <numeric>
@@ -25,12 +26,21 @@
 namespace imas {
 namespace file {
 
-class BXR
+class BXR : public Manageable
 {
 public:
-    std::pair<bool, std::string> load(std::filesystem::path const& filepath);
-    std::pair<bool, std::string> save(std::filesystem::path const& filepath);
-
+    BXR();
+    // Manageable interface
+    virtual void loadFromData(const std::vector<char>& data) override;
+    virtual void loadFromFile(std::filesystem::path const& filename) override;
+    virtual void saveToData(std::vector<char>& data) override;
+    virtual void saveToFile(std::filesystem::path const& filename) override;
+    virtual std::pair<bool, std::string> extract(const std::filesystem::path& savepath) override{
+      return writeXML(savepath);
+    }
+    virtual std::pair<bool, std::string> inject(const std::filesystem::path& openpath) override{
+      return readXML(openpath);
+    }
     void reset();
 
     //QJsonArray getJson();
@@ -100,6 +110,8 @@ public:
     std::vector<SubScriptEntry> m_sub_items;
     std::string m_property_name = "symbol";
 
+    template<class S> std::pair<bool, std::string> openFromStream(S &stream);
+    template<class S> std::pair<bool, std::string> saveToStream(S &stream);
     //size calculation
     uint32_t getUnicodeSize() const;
     uint32_t calculateSize() const;

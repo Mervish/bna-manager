@@ -26,6 +26,9 @@ QT_END_NAMESPACE
   5. [ ]Update file data in table when they are being updated.
   6. [*]Drag and drop support
   7. [*]File loading functions should output error messages along with the result.
+  8. [ ]Make a BNA internal structure file order DB, so you could restore the original header even if you pack files from folders
+  (as long as folder includes all of the original filenames)
+  9. [ ]Add protection, if user tries to pack 'root' folder
   ? - not tested
   * - partial
   REFACTORING IDEAS
@@ -59,8 +62,7 @@ private:
   PathSaver m_path_saver;
   imas::file::BNA bna;
   //Strings
-  QString m_current_file;
-  QString m_extract_folder;
+  std::filesystem::path m_current_file;
   //Dialogs
   QFileDialog m_open_file_dialog;
   QFileDialog m_save_file_dialog;

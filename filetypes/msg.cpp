@@ -94,14 +94,14 @@ template <class S> void MSG::openFromStream(S &stream) {
     label.resize(4);
     stream.read(label.data(), 4);
     stream.seekg(msg_count_offset);
-    auto count = imas::tools::readShort(stream);
+    auto count = imas::utility::readShort(stream);
     m_entries.resize(count);
     stream.seekg(msg_header_offset);
     for (auto &entry : m_entries) {
-        entry.map.size = imas::tools::readLong(stream);
-        entry.map.offset = imas::tools::readLong(stream);
+        entry.map.size = imas::utility::readLong(stream);
+        entry.map.offset = imas::utility::readLong(stream);
     }
-    imas::tools::evenReadStream(stream);
+    imas::utility::evenReadStream(stream);
     // msg uses offsets relative to the zero point.
     // Moreover, zero point is not defined in the header, so i'm just gonna assume
     // it goes straight after header
@@ -111,7 +111,7 @@ template <class S> void MSG::openFromStream(S &stream) {
         //Let's strip terminating character from the string
         entry.data.resize((entry.map.size - 1) / 2);
         for (auto &wide : entry.data) {
-            wide = imas::tools::readShort(stream);
+            wide = imas::utility::readShort(stream);
         }
     }
 }
@@ -121,38 +121,38 @@ void MSG::saveToStream(S &stream)
 {
     //Let's fill header
     stream.write("MSG", 3);
-    tools::padStream(stream, 0, 12);
+    utility::padStream(stream, 0, 12);
     stream.put(0x45);
-    tools::padStream(stream, 0, 16);
+    utility::padStream(stream, 0, 16);
     //Write string count
-    tools::writeShort(stream, m_entries.size()); //string count
-    tools::padStream(stream, 0, 4);
+    utility::writeShort(stream, m_entries.size()); //string count
+    utility::padStream(stream, 0, 4);
     int16_t const str_size = stringsSize();
-    tools::writeShort(stream, str_size); //string data size
-    tools::writeShort(stream, 0x10); //idk what this does
+    utility::writeShort(stream, str_size); //string data size
+    utility::writeShort(stream, 0x10); //idk what this does
     int16_t const header_size = headerSize();
-    tools::writeShort(stream, header_size); //header size
-    tools::padStream(stream, 0, 4);
+    utility::writeShort(stream, header_size); //header size
+    utility::padStream(stream, 0, 4);
     int32_t text_offset = 0;
     for(auto const& string: m_entries){
         int32_t const str_size = (string.data.size() + 1) * 2;
-        tools::writeLong(stream, str_size);
-        tools::writeLong(stream, text_offset);
+        utility::writeLong(stream, str_size);
+        utility::writeLong(stream, text_offset);
         text_offset += str_size;
     }
-    tools::evenWriteStream(stream, padding_literal);
+    utility::evenWriteStream(stream, padding_literal);
     for(auto const& string: m_entries){
         for (auto const &wide : string.data) {
-            tools::writeShort(stream, wide);
+            utility::writeShort(stream, wide);
         }
         //Add terminating character to the string
-        tools::writeShort(stream, wchar_t('\0'));
+        utility::writeShort(stream, wchar_t('\0'));
     }
     //Finalizing
-    tools::evenWriteStream(stream, padding_literal);
+    utility::evenWriteStream(stream, padding_literal);
     int size = stream.tellp().operator long long() - 32;
     stream.seekp(offset_data_size);
-    tools::writeLong(stream, size);
+    utility::writeLong(stream, size);
 }
 
 } // namespace file

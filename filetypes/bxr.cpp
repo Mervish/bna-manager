@@ -7,13 +7,16 @@
 #include <QXmlStreamWriter>
 
 #include <boost/range/adaptors.hpp>
+#include <boost/iostreams/device/array.hpp>
+#include <boost/iostreams/stream.hpp>
 
 namespace adaptor = boost::adaptors;
 
 namespace {
 constexpr auto bxr_label = "BXR0";
 constexpr auto unicode_literal = "unicode";
-constexpr auto type_hack_literal = "type_hack";
+constexpr auto type_hack_literal = "type";
+constexpr auto type_sub_literal = "sub";
 
 template<class T>
 uint32_t getStringSize(std::vector<T> const& evaluated) {
@@ -63,10 +66,47 @@ bool filterCandidateType(Candidate const& entry) {
 namespace imas{
 namespace file{
 
-std::pair<bool, std::string> BXR::load(std::filesystem::path const &filepath)
-{
-    std::ifstream stream(filepath, std::ios_base::binary);
+BXR::BXR(){
+    m_api = {.extension = "bxr",
+             .signature = "XML file (*.xml)",
+             .extraction_title = "Export as XML...",
+             .injection_title = "Import from XML..."};
+}
 
+void BXR::loadFromData(const std::vector<char> &data) {
+    boost::iostreams::array_source asource(data.data(), data.size());
+    boost::iostreams::stream<boost::iostreams::array_source> data_stream{asource};
+    openFromStream(data_stream);
+}
+
+void BXR::saveToData(std::vector<char> &data)
+{
+    data.resize(calculateSize());
+    boost::iostreams::array_sink asink(data.data(), data.size());
+    boost::iostreams::stream<boost::iostreams::array_sink> data_stream{asink};
+    saveToStream(data_stream);
+}
+
+void BXR::loadFromFile(const std::filesystem::path& filename) {
+    std::ifstream stream(filename, std::ios_base::binary);
+    if (!stream.is_open()) {
+        return;
+    }
+    openFromStream(stream);
+}
+
+void BXR::saveToFile(const std::filesystem::path& filename)
+{
+    std::ofstream stream(filename, std::ios_base::binary);
+    if(!stream.is_open()){
+        return;
+    }
+    saveToStream(stream);
+}
+
+template<class S>
+std::pair<bool, std::string> BXR::openFromStream(S &stream)
+{
     std::string label;
     label.resize(4);
     stream.read(label.data(), 4);
@@ -79,24 +119,24 @@ std::pair<bool, std::string> BXR::load(std::filesystem::path const &filepath)
     SectionSizes sizes;
 
     //First - we read offset array sizes
-    sizes.tag_main_script = imas::tools::readLong(stream);
-    sizes.tag_sub_script  = imas::tools::readLong(stream);
-    sizes.main_script     = imas::tools::readLong(stream);
-    sizes.sub_script      = imas::tools::readLong(stream);
-    sizes.symbol_offset   = imas::tools::readLong(stream);
+    sizes.tag_main_script = imas::utility::readLong(stream);
+    sizes.tag_sub_script  = imas::utility::readLong(stream);
+    sizes.main_script     = imas::utility::readLong(stream);
+    sizes.sub_script      = imas::utility::readLong(stream);
+    sizes.symbol_offset   = imas::utility::readLong(stream);
 
     // BLOCK1
     // Then we read main script tag offset
     m_main_tags.resize( sizes.tag_main_script );
     for(auto& entry: m_main_tags) {
-        entry.offset = imas::tools::readLong(stream);
+        entry.offset = imas::utility::readLong(stream);
     }
 
     // BLOCK2
     // And a subscript tag offset
     m_sub_tags.resize( sizes.tag_sub_script );
     for(auto& entry: m_sub_tags) {
-        entry.offset = imas::tools::readLong(stream);
+        entry.offset = imas::utility::readLong(stream);
     }
 
     // BLOCK3
@@ -104,13 +144,13 @@ std::pair<bool, std::string> BXR::load(std::filesystem::path const &filepath)
     m_main_items.resize( sizes.main_script );
     for(auto& entry: m_main_items)
     {
-        entry.before           = imas::tools::readLong(stream);
-        entry.next             = imas::tools::readLong(stream);
-        entry.data_tag         = imas::tools::readLong(stream);
-        entry.offset         = imas::tools::readLong(stream);
-        entry.index_sub_item = imas::tools::readLong(stream);
-        entry.offset_unicode   = imas::tools::readLong(stream);
-        entry.next_ticks   = imas::tools::readLong(stream);
+        entry.before           = imas::utility::readLong(stream);
+        entry.next             = imas::utility::readLong(stream);
+        entry.data_tag         = imas::utility::readLong(stream);
+        entry.offset         = imas::utility::readLong(stream);
+        entry.index_sub_item = imas::utility::readLong(stream);
+        entry.offset_unicode   = imas::utility::readLong(stream);
+        entry.next_ticks   = imas::utility::readLong(stream);
     }
 
     // BLOCK4
@@ -118,9 +158,9 @@ std::pair<bool, std::string> BXR::load(std::filesystem::path const &filepath)
     m_sub_items.resize( sizes.sub_script );
     for(auto& entry: m_sub_items)
     {
-        entry.next         = imas::tools::readLong(stream);
-        entry.data_tag      = imas::tools::readLong(stream);
-        entry.offset = imas::tools::readLong(stream);
+        entry.next         = imas::utility::readLong(stream);
+        entry.data_tag      = imas::utility::readLong(stream);
+        entry.offset = imas::utility::readLong(stream);
     }
 
     // BLOCK5
@@ -199,9 +239,6 @@ std::pair<bool, std::string> BXR::load(std::filesystem::path const &filepath)
         m_property_name = m_sub_tags.front().symbol;
     }
 
-    qInfo() << "filesize = " << std::filesystem::file_size(filepath);
-    qInfo() << "calculated size = " << calculateSize();
-
     return {true, "File succesfully loaded."};
 }
 
@@ -209,7 +246,7 @@ std::pair<bool, std::string> BXR::writeXML(std::filesystem::path const &filepath
 {
     QFile file(filepath);
     if(!file.open(QIODevice::WriteOnly)){
-        return {false, ""};
+        return {false, "Unable to open the file"};
     }
     QXmlStreamWriter xml_writer(&file);
     xml_writer.setAutoFormatting(true);
@@ -238,7 +275,8 @@ std::pair<bool, std::string> BXR::writeXML(std::filesystem::path const &filepath
         for (auto child : entry->subscript_children) {
             if (child->symbol.empty()) {
                 xml_writer.writeStartElement(child->tag_view);
-                xml_writer.writeAttribute(type_hack_literal, "sub");
+                xml_writer.writeAttribute(type_hack_literal, type_sub_literal);
+
                 xml_writer.writeEndElement();
             } else {
                 xml_writer.writeTextElement(child->tag_view, child->symbol);
@@ -275,7 +313,7 @@ std::pair<bool, std::string> BXR::readXML(std::filesystem::path const& filepath)
           continue;
         }
         if (QString(type_hack_literal) == attribute.name()) {
-          if (attribute.value() == QString("sub")) {
+          if (attribute.value() == QString(type_sub_literal)) {
             type = CandidateType::sub;
           }
           /*if(attribute.value() == QString("main")){
@@ -312,6 +350,7 @@ std::pair<bool, std::string> BXR::readXML(std::filesystem::path const& filepath)
        }
             break;
        case QXmlStreamReader::EndElement:
+            //Instead of using hack, we can
             --power;
             break;
        case QXmlStreamReader::Characters:
@@ -434,7 +473,7 @@ std::pair<bool, std::string> BXR::readXML(std::filesystem::path const& filepath)
          });
          item.subscript_children.back()->next = -1;
     }
-    return {true,""};
+    return {true,"File succesfully imported from XML."};
 }
 
 uint32_t BXR::getUnicodeSize() const {
@@ -455,12 +494,11 @@ uint32_t BXR::calculateStringSize() const {
     return string_count + getUnicodeSize();
 }
 
-uint32_t BXR::calculateSize() const
-{
+uint32_t BXR::calculateSize() const {
     uint32_t const string_size = calculateStringSize();
-    uint32_t label = 4;                     //label
-    uint32_t offsets = (5 * 4);             //offsets
-    uint32_t tag_m = (4 * m_main_tags.size()); //Tag data (1 param = 8 bit)
+    uint32_t label = 4;                        // label
+    uint32_t offsets = (5 * 4);                // offsets
+    uint32_t tag_m = (4 * m_main_tags.size()); // Tag data (1 param = 8 bit)
     uint32_t tag_s = (4 * m_sub_tags.size());  //
     uint32_t main = (4 * 7 * m_main_items.size());
     uint32_t sub = (4 * 3 * m_sub_items.size());
@@ -491,9 +529,8 @@ void BXR::insertIntoQueue(std::vector<T>& origin, std::vector<imas::file::BXR::O
     output.insert(output.end(), transformed_range.begin(), transformed_range.end());
 }
 
-std::pair<bool, std::string> BXR::save(std::filesystem::path const& filepath) {
-    std::ofstream stream(filepath, std::ios_base::binary);
-
+template<class S>
+std::pair<bool, std::string> BXR::saveToStream(S &stream) {
     // 1. Let's start building the string chunk
     std::vector<Offsetable*> offset_queue;
 
@@ -521,41 +558,41 @@ std::pair<bool, std::string> BXR::save(std::filesystem::path const& filepath) {
     stream.write(label.data(), label.size());
 
     // Write base offsets
-    imas::tools::writeLong(stream, m_main_tags.size());
-    imas::tools::writeLong(stream, m_sub_tags.size());
-    imas::tools::writeLong(stream, m_main_items.size());
-    imas::tools::writeLong(stream, m_sub_items.size());
-    imas::tools::writeLong(stream, string_library.size());
+    imas::utility::writeLong(stream, m_main_tags.size());
+    imas::utility::writeLong(stream, m_sub_tags.size());
+    imas::utility::writeLong(stream, m_main_items.size());
+    imas::utility::writeLong(stream, m_sub_items.size());
+    imas::utility::writeLong(stream, string_library.size());
 
     // Write sections data
     for (auto& entry : m_main_tags) {
-        imas::tools::writeLong(stream, entry.offset);
+        imas::utility::writeLong(stream, entry.offset);
     }
 
     // BLOCK2
     // And a subscript tag offset
     for (auto& entry : m_sub_tags) {
-        imas::tools::writeLong(stream, entry.offset);
+        imas::utility::writeLong(stream, entry.offset);
     }
 
     // BLOCK3
     // We fill the mainscript entries with the integer data
     for (auto& entry : m_main_items) {
-        imas::tools::writeLong(stream, entry.before);
-        imas::tools::writeLong(stream, entry.next);
-        imas::tools::writeLong(stream, entry.data_tag);
-        imas::tools::writeLong(stream, entry.offset);
-        imas::tools::writeLong(stream, entry.index_sub_item);
-        imas::tools::writeLong(stream, entry.offset_unicode);
-        imas::tools::writeLong(stream, entry.next_ticks);
+        imas::utility::writeLong(stream, entry.before);
+        imas::utility::writeLong(stream, entry.next);
+        imas::utility::writeLong(stream, entry.data_tag);
+        imas::utility::writeLong(stream, entry.offset);
+        imas::utility::writeLong(stream, entry.index_sub_item);
+        imas::utility::writeLong(stream, entry.offset_unicode);
+        imas::utility::writeLong(stream, entry.next_ticks);
     }
 
     // BLOCK4
     // Ditto with subscript
     for (auto& entry : m_sub_items) {
-        imas::tools::writeLong(stream, entry.next);
-        imas::tools::writeLong(stream, entry.data_tag);
-        imas::tools::writeLong(stream, entry.offset);
+        imas::utility::writeLong(stream, entry.next);
+        imas::utility::writeLong(stream, entry.data_tag);
+        imas::utility::writeLong(stream, entry.offset);
     }
 
     //. Write string chunk

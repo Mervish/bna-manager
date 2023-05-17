@@ -1,10 +1,10 @@
-#ifndef SCB_H
-#define SCB_H
+#pragma once
 
 #include <filetypes/manageable.h>
 
 #include <string>
 #include <vector>
+#include <filesystem>
 
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -37,15 +37,15 @@ class SCB : public Manageable {
 public:
   SCB();
   void loadFromData(std::vector<char> const &data) override;
-  void loadFromFile(const std::string &filename) override;
+  void loadFromFile(std::filesystem::path const& filename) override;
   void saveToData(std::vector<char> &data) override;
-  void saveToFile(const std::string &filename) override;
+  void saveToFile(std::filesystem::path const& filename) override;
   void rebuild();
   MSG &msg_data();
 
   //virtuals
-  virtual std::pair<bool, std::string> extract(std::string const& savepath) override;
-  virtual std::pair<bool, std::string> inject(std::string const& openpath) override;
+  virtual std::pair<bool, std::string> extract(std::filesystem::path const& savepath) override;
+  virtual std::pair<bool, std::string> inject(std::filesystem::path const& openpath) override;
 
 private:
   template<class S> void openFromStream(S &stream);
@@ -65,5 +65,3 @@ private:
 
 } // namespace file
 } // namespace imas
-
-#endif // SCB_H

@@ -119,7 +119,7 @@ void setMasterScript(std::string const& gamepath, std::string const& scriptpath)
             auto const scb_obj = scb_json.toObject();
             auto const path = scb_obj["name"].toString().toStdString();
             auto const strings_json = scb_obj["strings"].toArray();
-            auto res = std::ranges::find_if(script_files, [&path](std::reference_wrapper<BNAFileEntry> const& file){
+            auto res = std::ranges::find_if(script_files, [&path](std::reference_wrapper<imas::file::BNAFileEntry> const& file){
                 return path == std::string(file.get().dir_name) + '/' + file.get().file_name;
             });
             if(res != script_files.end()) {

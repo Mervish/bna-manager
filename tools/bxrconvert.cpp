@@ -34,7 +34,7 @@ int main(int argc, char *argv[])
 
     imas::file::BXR bxr;
     if(extension == ".bxr") {
-        bxr.load(path);
+        bxr.loadFromFile(path);
         path.replace_extension(".xml");
         if (rewriteCheck(path)) {
             bxr.writeXML(path);
@@ -44,7 +44,7 @@ int main(int argc, char *argv[])
         bxr.readXML(path);
         path.replace_extension(".bxr");
         if (rewriteCheck(path)) {
-            bxr.save(path);
+            bxr.saveToFile(path);
             std::cout << "Saved to " << path << std::endl;
         }
     }

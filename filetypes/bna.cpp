@@ -1,6 +1,5 @@
 #include "bna.h"
 
-#include <QDebug>
 #include <QMessageBox>
 
 #include "utility/stdhacks.h"
@@ -10,6 +9,7 @@
 #include <boost/range/combine.hpp>
 
 #include <unordered_set>
+#include <filesystem>
 
 namespace  {
 #warning Dublicate code. "streamtools.h" already contains similar function. There is probably
@@ -22,10 +22,19 @@ inline void readToValue(std::ifstream &stream, T &value){
 auto constexpr terminator = '\0';
 auto constexpr padding_char = 0;
 
-#define FILETYPESTRING(a) \
-{ #a, bnafiletype::a }
+enum class BNAFiletype{
+  nud,
+  nut,
+  skl,
+  num,
+  acc,
+  other
+};
 
-const std::map<std::string, bnafiletype> filetypemap{
+#define FILETYPESTRING(a) \
+{ #a, BNAFiletype::a }
+
+const std::map<std::string, BNAFiletype> filetypemap{
     FILETYPESTRING(acc),
     FILETYPESTRING(nud),
     FILETYPESTRING(num),
@@ -33,9 +42,9 @@ const std::map<std::string, bnafiletype> filetypemap{
     FILETYPESTRING(skl)
 };
 
-bnafiletype getFileType(std::filesystem::path const& path){
+BNAFiletype getFileType(std::filesystem::path const& path){
   auto const res = filetypemap.find(path.extension().string().substr(1));
-  return res == filetypemap.end() ? bnafiletype::other : res->second;
+  return res == filetypemap.end() ? BNAFiletype::other : res->second;
 }
 
 //For some reason, in BNA-files, if you have 2 pathes and one of them is prefix to another(i.e. "root/abc/efg" and "root/abc"),
@@ -56,7 +65,7 @@ bool isBNAFileOrder(std::string const& left, std::string const& right){
   if(leftPath.stem() == rightPath.stem()){
       auto typeleft  = getFileType(leftPath);
       auto typeright = getFileType(rightPath);
-      return std::ranges::count(std::array{typeleft, typeright}, bnafiletype::other) ? left < right : typeleft < typeright;
+      return std::ranges::count(std::array{typeleft, typeright}, BNAFiletype::other) ? left < right : typeleft < typeright;
   }
   return left < right;
 }
@@ -78,11 +87,11 @@ void BNA::sortFileData()
   });
 }
 
-bool BNA::loadFromFile(std::string const& filename)
+bool BNA::loadFromFile(std::filesystem::path const& filepath)
 {
   constexpr auto title = "Opening BNA file...";
 
-  m_stream.open(filename, std::ios_base::binary);
+  m_stream.open(filepath, std::ios_base::binary);
   if (!m_stream.is_open()) {    
     QMessageBox::critical(nullptr, title, "Failed to open file!");
     return false;   
@@ -138,16 +147,15 @@ bool BNA::loadFromFile(std::string const& filename)
   return false;
 }
 
-bool BNA::loadFromDir(std::string const& dirname)
+bool BNA::loadFromDir(std::filesystem::path const& dirpath)
 {
-  std::filesystem::path root_path(dirname);
   std::unordered_map<std::string, std::vector<std::filesystem::directory_entry>> filemap;
-  for (auto const &filepath : std::filesystem::recursive_directory_iterator(dirname)) {
+  for (auto const &filepath : std::filesystem::recursive_directory_iterator(dirpath)) {
     if (!filepath.is_regular_file()) {
         continue;
     }
-    auto const dirpath = std::filesystem::relative(filepath.path().parent_path(), dirname).string();
-    filemap[dirpath].push_back(filepath);
+    auto const rel_path = std::filesystem::relative(filepath.path().parent_path(), dirpath).string();
+    filemap[rel_path].push_back(filepath);
   }
 
   for(auto const& [index, pair]: filemap | adaptor::indexed(0))
@@ -175,12 +183,12 @@ bool BNA::loadFromDir(std::string const& dirname)
   return true;
 }
 
-void BNA::saveToFile(std::string const& filename)
+void BNA::saveToFile(std::filesystem::path const& filepath)
 {
   fetchAll();
   //constexpr auto title = "Saving BNA file...";
 
-  std::ofstream stream(filename, std::ios_base::binary);
+  std::ofstream stream(filepath, std::ios_base::binary);
   if (!stream.is_open()) {    return;
   }
   //Let's begin calculating
@@ -221,16 +229,16 @@ void BNA::saveToFile(std::string const& filename)
   //Let's start actual writing
   stream.write("BNA0", 4);
 
-  imas::tools::writeLong(stream, m_file_data.size());
+  imas::utility::writeLong(stream, m_file_data.size());
   for(auto const& file_offset : file_offset_data){
-    imas::tools::writeLong(stream, file_offset.dir_name.offset);
-    imas::tools::writeLong(stream, file_offset.file_name.offset);
-    imas::tools::writeLong(stream, file_offset.file_data.offset);
-    imas::tools::writeLong(stream, file_offset.file_data.size);
+    imas::utility::writeLong(stream, file_offset.dir_name.offset);
+    imas::utility::writeLong(stream, file_offset.file_name.offset);
+    imas::utility::writeLong(stream, file_offset.file_data.offset);
+    imas::utility::writeLong(stream, file_offset.file_data.size);
   }
   stream.write(namebuf.data(), namebuf.size());
   for(auto const& file_data : m_file_data){
-    imas::tools::evenWriteStream(stream, padding_char, 0x80);
+    imas::utility::evenWriteStream(stream, padding_char, 0x80);
     stream.write(file_data.file_data.data(), file_data.file_data.size());
   }
 }
@@ -256,7 +264,7 @@ const std::map<int, std::string> &BNA::getFolderLibrary() const
   return m_folder_offset_library;
 }
 
-void BNA::extractFile(BNAFileEntry const& file, std::string const& out_path){
+void BNA::extractFile(BNAFileEntry const& file, std::filesystem::path const& out_path){
   std::ofstream ostream(out_path, std::ios_base::binary);
   if(file.loaded){
     ostream.write(file.file_data.data(), file.file_data.size());
@@ -268,7 +276,7 @@ void BNA::extractFile(BNAFileEntry const& file, std::string const& out_path){
   }
 }
 
-void BNA::replaceFile(BNAFileEntry& file, std::string const& in_path){
+void BNA::replaceFile(BNAFileEntry& file, std::filesystem::path const& in_path){
   std::ifstream ifstream(in_path, std::ios_base::binary);
   if(!ifstream.is_open()){
     return;
@@ -280,17 +288,17 @@ void BNA::replaceFile(BNAFileEntry& file, std::string const& in_path){
   file.loaded = true;
 }
 
-void BNA::extractFile(FileSignature const& signature, std::string const& out_path)
+void BNA::extractFile(BNAFileSignature const& signature, std::filesystem::path const& out_path)
 {
   extractFile(getFile(signature), out_path);
 }
 
-void BNA::replaceFile(FileSignature const& signature, std::string const& in_path)
+void BNA::replaceFile(BNAFileSignature const& signature, std::string const& in_path)
 {
   replaceFile(getFile(signature), in_path);
 }
 
-BNAFileEntry& BNA::getFile(FileSignature const& signature)
+BNAFileEntry& BNA::getFile(BNAFileSignature const& signature)
 {
   auto const off_it = std::ranges::find_if(m_folder_offset_library, [folder = signature.path](auto const& pair){
     return folder == pair.second;
@@ -338,12 +346,12 @@ void BNA::fetchAll()
   m_stream.close();
 }
 
-void BNA::extractAll(const std::string &path)
+void BNA::extractAllToDir(std::filesystem::path const& dirpath)
 {
   for(auto &file: m_file_data){
-    auto dirpath = path + "/" + std::string(file.dir_name);
-    std::filesystem::create_directories(dirpath);
-    extractFile(file, dirpath + "/" + file.file_name);
+    auto s_dirpath = dirpath / std::string(file.dir_name);
+    std::filesystem::create_directories(s_dirpath);
+    extractFile(file, s_dirpath / file.file_name);
   }
 }
 }
