@@ -1,5 +1,6 @@
 #include "bna.h"
 
+#include <QFile>
 #include <QMessageBox>
 
 #include "utility/stdhacks.h"
@@ -9,7 +10,6 @@
 #include <boost/range/combine.hpp>
 
 #include <unordered_set>
-#include <filesystem>
 
 namespace  {
 #warning Dublicate code. "streamtools.h" already contains similar function. There is probably
@@ -87,64 +87,68 @@ void BNA::sortFileData()
   });
 }
 
-bool BNA::loadFromFile(std::filesystem::path const& filepath)
-{
-  constexpr auto title = "Opening BNA file...";
+void BNA::registerFileStructure() const {
+  auto const filepath_range = m_file_data | adaptor::transformed([](auto const& file){
+                                  return file.getFullPath();
+                                });
+  utility::BNASorter::getSorter()->setData(m_filepath.filename().string(), std::vector(filepath_range.begin(), filepath_range.end()));
+}
 
-  m_stream.open(filepath, std::ios_base::binary);
-  if (!m_stream.is_open()) {    
-    QMessageBox::critical(nullptr, title, "Failed to open file!");
-    return false;   
+std::pair<bool, std::string> BNA::loadFromFile(std::filesystem::path const& filepath)
+{
+  m_filepath = filepath;
+
+  m_read_stream.open(filepath, std::ios_base::binary);
+  if (!m_read_stream.is_open()) {
+      return {false, "Failed to open file!"};
   }
   m_file_data.clear();
   m_folder_offset_library.clear();
   //Check idstring
   auto constexpr idsize = 4;
   char idstring[idsize];
-  m_stream.read(idstring, idsize);
-  if(memcmp("BNA0", idstring, idsize)){
-    //warn user via message box
-    QMessageBox::critical(nullptr, title, "This file is not a valid BNA file!");
-    return false;
+  m_read_stream.read(idstring, idsize);
+  if (memcmp("BNA0", idstring, idsize)) {
+      return {false, "This file is not a valid BNA file!"};
   }
 
   //Get filecount
   int32_t files;
-  readToValue(m_stream, files);
+  readToValue(m_read_stream, files);
 
   std::set<int32_t> folder_offsets;
 
   //Parse header
   for(decltype(files) n_file = 0; n_file < files; ++n_file){
     BNAFileEntry entry;
-    readToValue(m_stream, entry.offsets.dir_name.offset);
-    readToValue(m_stream, entry.offsets.file_name.offset);
-    readToValue(m_stream, entry.offsets.file_data.offset);
-    readToValue(m_stream, entry.offsets.file_data.size);
+    readToValue(m_read_stream, entry.offsets.dir_name);
+    readToValue(m_read_stream, entry.offsets.file_name);
+    readToValue(m_read_stream, entry.offsets.file_data.offset);
+    readToValue(m_read_stream, entry.offsets.file_data.size);
     m_file_data.push_back(entry);
-    folder_offsets.insert(entry.offsets.dir_name.offset);
+    folder_offsets.insert(entry.offsets.dir_name);
   }
   //Get folder names
   for(auto offset: folder_offsets){
     std::stringbuf folderbuf;
-    m_stream.seekg(offset);
-    m_stream.get(folderbuf, terminator);
+    m_read_stream.seekg(offset);
+    m_read_stream.get(folderbuf, terminator);
     m_folder_offset_library[offset] = folderbuf.str();
   }
   //Get file names
   for(auto &entry: m_file_data){
     std::stringbuf folebuf;
-    m_stream.seekg(entry.offsets.file_name.offset);
-    m_stream.get(folebuf, terminator);
+    m_read_stream.seekg(entry.offsets.file_name);
+    m_read_stream.get(folebuf, terminator);
     entry.file_name = folebuf.str();
-    entry.dir_name = m_folder_offset_library[entry.offsets.dir_name.offset];
+    entry.dir_name = m_folder_offset_library[entry.offsets.dir_name];
   }
 
   if(!m_file_data.empty()){
-    //sortFileData();
-    return true;
+    registerFileStructure();
+    return {true, "Opened the file"};
   }
-  return false;
+  return {false, "BNA file is empty."};
 }
 
 bool BNA::loadFromDir(std::filesystem::path const& dirpath)
@@ -186,55 +190,46 @@ bool BNA::loadFromDir(std::filesystem::path const& dirpath)
 void BNA::saveToFile(std::filesystem::path const& filepath)
 {
   fetchAll();
-  //constexpr auto title = "Saving BNA file...";
-
   std::ofstream stream(filepath, std::ios_base::binary);
-  if (!stream.is_open()) {    return;
+  if (!stream.is_open()) {
+    return;
   }
   //Let's begin calculating
-  std::vector<BNAOffsetData> file_offset_data(m_file_data.size());
-  auto file_combo = boost::combine(m_file_data, file_offset_data);
-  ByteCounter byte_counter{ static_cast<uint32_t>(8 + (m_file_data.size() * 16)) };
   std::vector<char> namebuf;
-  std::vector<std::string> directories;
-  for(auto const& file: m_file_data){
-    if(0 == std::ranges::count(directories, file.dir_name)){
-        directories.emplace_back(file.dir_name);
+  ByteCounter byte_counter{ static_cast<uint32_t>(8 + (m_file_data.size() * 16)) };
+  auto const setOffset = [&byte_counter, &namebuf](std::unordered_map<std::string, int>& map, std::string const& name, int &offset) {
+    if(auto const it = map.find(name); it != map.end()){
+      offset = it->second;
+    }else{
+      offset = byte_counter.offset;
+      map[name] = byte_counter.offset;
+      std::ranges::copy(name, std::back_insert_iterator(namebuf));
+      namebuf.push_back(0);
+      byte_counter.addSize(name.size() + 1);
     }
-  }
-  //dir offset calc
-  for(auto const& dir: directories){
-    ByteMap const cur_dir { byte_counter.offset, static_cast<uint32_t>(dir.size() + 1) };
-    std::ranges::copy(dir, std::back_insert_iterator(namebuf));
-    namebuf.push_back(0);
-    byte_counter.addSize(cur_dir.size);
-    for(auto const& [file_data, offset_data] : file_combo | boost::adaptors::filtered([dir](auto const& tuple){
-                                                    auto const& [file_data, offset_data] = tuple;
-                                                    return dir == file_data.dir_name;
-                                                })){
-        auto const size = file_data.file_name.size() + 1;
-        std::ranges::copy(file_data.file_name, std::back_insert_iterator(namebuf));
-        namebuf.push_back(0);
-        offset_data.dir_name = cur_dir;
-        offset_data.file_name = { byte_counter.offset, static_cast<uint32_t>(size) };
-        byte_counter.addSize(size);
-    }
+  };
+  std::unordered_map<std::string, int> folder_offset_map;
+  std::unordered_map<std::string, int> file_offset_map;
+  for(auto& file: m_file_data) {
+    //check if we've written the folder name
+    setOffset(folder_offset_map, std::string(file.dir_name), file.offsets.dir_name);
+    //ditto for file
+    setOffset(file_offset_map, file.file_name, file.offsets.file_name);
   }
   //File data offset calc
-  for(auto const& [file_data, offset_data]: file_combo){
+  for(auto& file_data : m_file_data){
     auto const size = file_data.file_data.size();
-    offset_data.file_data = { byte_counter.pad(), static_cast<uint32_t>(size) };
+    file_data.offsets.file_data = { byte_counter.pad(), static_cast<uint32_t>(size) };
     byte_counter.addSize(size);
   }
   //Let's start actual writing
   stream.write("BNA0", 4);
-
   imas::utility::writeLong(stream, m_file_data.size());
-  for(auto const& file_offset : file_offset_data){
-    imas::utility::writeLong(stream, file_offset.dir_name.offset);
-    imas::utility::writeLong(stream, file_offset.file_name.offset);
-    imas::utility::writeLong(stream, file_offset.file_data.offset);
-    imas::utility::writeLong(stream, file_offset.file_data.size);
+  for(auto const& file : m_file_data){
+    imas::utility::writeLong(stream, file.offsets.dir_name);
+    imas::utility::writeLong(stream, file.offsets.file_name);
+    imas::utility::writeLong(stream, file.offsets.file_data.offset);
+    imas::utility::writeLong(stream, file.offsets.file_data.size);
   }
   stream.write(namebuf.data(), namebuf.size());
   for(auto const& file_data : m_file_data){
@@ -270,8 +265,8 @@ void BNA::extractFile(BNAFileEntry const& file, std::filesystem::path const& out
     ostream.write(file.file_data.data(), file.file_data.size());
   } else {
     std::vector<char> midbuf(file.offsets.file_data.size);
-    m_stream.seekg(file.offsets.file_data.offset);
-    m_stream.read(midbuf.data(), file.offsets.file_data.size);
+    m_read_stream.seekg(file.offsets.file_data.offset);
+    m_read_stream.read(midbuf.data(), file.offsets.file_data.size);
     ostream.write(midbuf.data(), midbuf.size());
   }
 }
@@ -287,6 +282,14 @@ void BNA::replaceFile(BNAFileEntry& file, std::filesystem::path const& in_path){
   ifstream.read(file.file_data.data(), size);
   file.loaded = true;
 }
+
+//Call after sorting
+/*void BNA::generateFolderLibrary() {
+  m_folder_library.clear();
+  for (auto &file : m_file_data) {
+    m_folder_library[file.dir_name].push_back(file);
+  }
+}*/
 
 void BNA::extractFile(BNAFileSignature const& signature, std::filesystem::path const& out_path)
 {
@@ -305,7 +308,7 @@ BNAFileEntry& BNA::getFile(BNAFileSignature const& signature)
   });
   Q_ASSERT(off_it != m_folder_offset_library.end());
   auto const file_it = std::ranges::find_if(m_file_data, [&signature, offset = off_it->first](auto const& file){
-    return offset == file.offsets.dir_name.offset && signature.name == file.file_name;
+    return offset == file.offsets.dir_name && signature.name == file.file_name;
   });
   Q_ASSERT(file_it != m_file_data.end());
   if(!file_it->loaded){
@@ -316,19 +319,22 @@ BNAFileEntry& BNA::getFile(BNAFileSignature const& signature)
 
 void BNA::reset()
 {
+  m_filepath.clear();
   m_file_data.clear();
+  m_file_sorter.reset();
+  //m_folder_library.clear();
   m_folder_offset_library.clear();
-  m_stream.close();
+  m_read_stream.close();
 }
 
 void BNA::fetchFile(BNAFileEntry& file) {
-  if(!m_stream.is_open()) {
+  if(!m_read_stream.is_open()) {
     return;
   }
   if(!file.loaded){
     file.file_data.resize(file.offsets.file_data.size);
-    m_stream.seekg(file.offsets.file_data.offset);
-    m_stream.read(file.file_data.data(), file.offsets.file_data.size);
+    m_read_stream.seekg(file.offsets.file_data.offset);
+    m_read_stream.read(file.file_data.data(), file.offsets.file_data.size);
     file.loaded = true;
   }
 }
@@ -336,14 +342,14 @@ void BNA::fetchFile(BNAFileEntry& file) {
 void BNA::fetchAll()
 {
   //all loaded
-  if(!m_stream.is_open()) {
+  if(!m_read_stream.is_open()) {
     return;
   }
   for (auto &file_header :
        m_file_data | adaptor::filtered([](BNAFileEntry const &file) { return !file.loaded; })) {
     fetchFile(file_header);
   }
-  m_stream.close();
+  m_read_stream.close();
 }
 
 void BNA::extractAllToDir(std::filesystem::path const& dirpath)
@@ -354,6 +360,7 @@ void BNA::extractAllToDir(std::filesystem::path const& dirpath)
     extractFile(file, s_dirpath / file.file_name);
   }
 }
+
 }
 }
 

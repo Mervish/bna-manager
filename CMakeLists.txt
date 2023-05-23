@@ -33,6 +33,8 @@ set(PROJECT_SOURCES
         filetypes/scb.cpp
         filetypes/bxr.h
         filetypes/bxr.cpp
+        utility/bnasorter.h
+        utility/bnasorter.cpp
         utility/stdhacks.h
         utility/stdhacks.cpp
         utility/datatools.h
@@ -92,6 +94,8 @@ qt_add_executable(BNAMaster
     filetypes/scb.cpp
     filetypes/msg.h
     filetypes/msg.cpp
+    utility/bnasorter.h
+    utility/bnasorter.cpp
 )
 
 if(QT_VERSION_MAJOR EQUAL 6)
@@ -114,6 +118,8 @@ qt_add_executable(bnaunpack
     tools/bnaunpack.cpp
     filetypes/bna.h
     filetypes/bna.cpp
+    utility/bnasorter.h
+    utility/bnasorter.cpp
 )
 
 target_link_libraries(bnaunpack PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)

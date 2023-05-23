@@ -141,7 +141,7 @@ MainWindow::MainWindow(QWidget *parent)
           }
           std::filesystem::remove_all(final_dir);
       }
-      bna.extractToDir(final_dir);
+      bna.extractAllToDir(final_dir);
       m_logger->info(QString("Extracted BNA to: %1").arg(QString::fromStdString(final_dir)));
   });
   //table actions
@@ -235,13 +235,9 @@ void MainWindow::setFilePathString(QString const& status) {
 
 void MainWindow::openFile(const QString &filename)
 {
-  QFile file(filename);
-  if(!file.open(QFile::ReadOnly)){
-    QMessageBox::warning(this, "Error!", "Unable to open the file.");
-    return;
-  }
-  if(!bna.loadFromFile(filename.toStdString())){
-    QMessageBox::warning(this, "Error!", "Unable to parse .bna file.");
+  auto const [success, message] = bna.loadFromFile(filename.toStdString());
+  if(!success){
+    m_logger->error(message.c_str());
     return;
   }
   setFilePathString(filename);
@@ -265,9 +261,8 @@ void MainWindow::openFile(const QString &filename)
       }
     }
     //Let's set files, if any
-    //Model initialisation should be inside the model.
     auto file_data_range = header | adaptor::filtered([off = off](imas::file::BNAFileEntry const &entry) {
-                               return off == entry.offsets.dir_name.offset;
+                               return off == entry.offsets.dir_name;
                            })
                            | adaptor::transformed([](imas::file::BNAFileEntry const &entry) {
                                  return imas::model::FileData(QString::fromStdString(entry.file_name),

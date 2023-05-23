@@ -24,7 +24,7 @@ void unpackFile(std::filesystem::path const& filepath, std::filesystem::path con
       return;
     }
   }
-  bna.extractToDir(dirpath);
+  bna.extractAllToDir(dirpath);
 }
 
 void unpackFile(std::filesystem::path const& filepath)
