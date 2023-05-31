@@ -1,12 +1,10 @@
 #pragma once
 
-#include "utility/bnasorter.h"
 #include "utility/datatools.h"
-
-#include <QMap>
 
 #include <filesystem>
 #include <fstream>
+#include <map>
 
 namespace imas {
 namespace file {
@@ -15,7 +13,6 @@ struct BNAFileSignature{
   std::string path;
   std::string name;
 };
-
 
 
 struct BNAFileEntry{
@@ -63,12 +60,10 @@ private:
                    std::filesystem::path const& out_path);
   void replaceFile(BNAFileEntry& file, std::filesystem::path const& in_path);
   //void generateFolderLibrary();
-  void registerFileStructure() const;
 
   // data
   std::filesystem::path m_filepath;                     //not necessary, but may be convenient to have
   std::ifstream m_read_stream;                          //Keeps the file opened, as long as we haven't read all of the data
-  std::optional<utility::FileSorter> m_file_sorter;
   //std::map<std::string_view, std::vector<std::reference_wrapper<BNAFileEntry>>> m_folder_library;
   std::map<int, std::string> m_folder_offset_library;
   std::vector<BNAFileEntry> m_file_data;

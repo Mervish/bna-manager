@@ -38,3 +38,6 @@ build/
 CMakeFiles/
 
 CMakeCache.txt
+bna.drawio
+.$bna.drawio.bkp
+.$bna.drawio.dtmp

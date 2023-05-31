@@ -1,13 +1,11 @@
 #include "bna.h"
 
-#include <QFile>
-#include <QMessageBox>
-
 #include "utility/stdhacks.h"
 #include "utility/streamtools.h"
 
 #include <boost/range/adaptors.hpp>
 #include <boost/range/combine.hpp>
+//#include <boost/json/src.hpp>
 
 #include <unordered_set>
 
@@ -71,9 +69,16 @@ bool isBNAFileOrder(std::string const& left, std::string const& right){
 }
 //UPD: The order of files in BNA seems to be arbitrary. These functions served their purpose of debugging bit-precise BNA rebuilding.
 //From the point of the game it shouldn't matter in what order the header written. So perhaps these may be retired in future.
+
+/*struct BNAMetaEntry{
+  std::optional<std::string> alias;
+  imas::file::BNAFileEntry const*const file;
+  BNAMetaEntry(imas::file::BNAFileEntry* file) : file(file) {}
+};*/
 }
 
 namespace adaptor = boost::adaptors;
+//namespace bjson = boost::json;
 
 namespace imas {
 namespace file {
@@ -85,13 +90,6 @@ void BNA::sortFileData()
                  isBNAFileOrder(left.file_name, right.file_name) :
                  isBNASubfolder(left.dir_name, right.dir_name);
   });
-}
-
-void BNA::registerFileStructure() const {
-  auto const filepath_range = m_file_data | adaptor::transformed([](auto const& file){
-                                  return file.getFullPath();
-                                });
-  utility::BNASorter::getSorter()->setData(m_filepath.filename().string(), std::vector(filepath_range.begin(), filepath_range.end()));
 }
 
 std::pair<bool, std::string> BNA::loadFromFile(std::filesystem::path const& filepath)
@@ -145,7 +143,6 @@ std::pair<bool, std::string> BNA::loadFromFile(std::filesystem::path const& file
   }
 
   if(!m_file_data.empty()){
-    registerFileStructure();
     return {true, "Opened the file"};
   }
   return {false, "BNA file is empty."};
@@ -306,11 +303,11 @@ BNAFileEntry& BNA::getFile(BNAFileSignature const& signature)
   auto const off_it = std::ranges::find_if(m_folder_offset_library, [folder = signature.path](auto const& pair){
     return folder == pair.second;
   });
-  Q_ASSERT(off_it != m_folder_offset_library.end());
+  //Q_ASSERT(off_it != m_folder_offset_library.end());
   auto const file_it = std::ranges::find_if(m_file_data, [&signature, offset = off_it->first](auto const& file){
     return offset == file.offsets.dir_name && signature.name == file.file_name;
   });
-  Q_ASSERT(file_it != m_file_data.end());
+  //Q_ASSERT(file_it != m_file_data.end());
   if(!file_it->loaded){
     fetchFile(*file_it);
   }
@@ -321,7 +318,6 @@ void BNA::reset()
 {
   m_filepath.clear();
   m_file_data.clear();
-  m_file_sorter.reset();
   //m_folder_library.clear();
   m_folder_offset_library.clear();
   m_read_stream.close();
@@ -354,6 +350,15 @@ void BNA::fetchAll()
 
 void BNA::extractAllToDir(std::filesystem::path const& dirpath)
 {
+  //std::vector<BNAMetaEntry> meta_script(m_file_data.begin(), m_file_data.end());
+  
+  //let's create metafile
+  /*bjson::array meta_array;
+  std::unordered_map<std::string, std::vector<BNAFileEntry*>> duplicateMap;
+  for (auto& element : meta_script) {
+    duplicateMap[element.file.getFullPath()].push_back(element. &element);
+  }*/
+  
   for(auto &file: m_file_data){
     auto s_dirpath = dirpath / std::string(file.dir_name);
     std::filesystem::create_directories(s_dirpath);

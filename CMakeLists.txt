@@ -33,8 +33,8 @@ set(PROJECT_SOURCES
         filetypes/scb.cpp
         filetypes/bxr.h
         filetypes/bxr.cpp
-        utility/bnasorter.h
-        utility/bnasorter.cpp
+        filetypes/nut.h
+        filetypes/nut.cpp
         utility/stdhacks.h
         utility/stdhacks.cpp
         utility/datatools.h
@@ -74,6 +74,8 @@ endif()
 
 target_link_libraries(BNATool PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
 
+target_include_directories(BNATool PRIVATE ./../libsquish)
+
 set_target_properties(BNATool PROPERTIES
     OUTPUT_NAME BNATool
     MACOSX_BUNDLE_GUI_IDENTIFIER my.example.com
@@ -94,8 +96,6 @@ qt_add_executable(BNAMaster
     filetypes/scb.cpp
     filetypes/msg.h
     filetypes/msg.cpp
-    utility/bnasorter.h
-    utility/bnasorter.cpp
 )
 
 if(QT_VERSION_MAJOR EQUAL 6)
@@ -118,8 +118,6 @@ qt_add_executable(bnaunpack
     tools/bnaunpack.cpp
     filetypes/bna.h
     filetypes/bna.cpp
-    utility/bnasorter.h
-    utility/bnasorter.cpp
 )
 
 target_link_libraries(bnaunpack PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
@@ -128,12 +126,19 @@ if(QT_VERSION_MAJOR EQUAL 6)
     qt_finalize_executable(bnaunpack)
 endif()
 
+add_executable(nutunpack
+tools/nutunpack.cpp
+filetypes/nut.h
+filetypes/nut.cpp
+utility/commandline.h)
+
 if(Boost_FOUND)
     include_directories(${Boost_INCLUDE_DIRS})
-    #add_executable(progname file1.cxx file2.cxx)
     target_link_libraries(BNATool ${Boost_LIBRARIES})
     target_link_libraries(BNAMaster ${Boost_LIBRARIES})
+    target_link_libraries(nutunpack ${Boost_LIBRARIES})
 endif()
+
 
 target_link_libraries(BNAMaster PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
 
