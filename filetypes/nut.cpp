@@ -4,7 +4,6 @@
 
 #include <fstream>
 
-#include <boost/json/src.hpp>
 #include <boost/range/adaptor/transformed.hpp>
 
 namespace bjson = boost::json;
@@ -22,7 +21,6 @@ void changeEndian4(std::vector<char> &target) {
     std::iter_swap(it + 1, it + 2);
   }
 }
-
 
 }
 
@@ -70,9 +68,9 @@ bool TextureData::Load(std::ifstream& stream) {
     return false;
   }
 
-  ext.unknown8 = utility::readLong(stream);  // always 32
-  ext.unknown9 = utility::readLong(stream);  // always 16
-  ext.unknown10 = utility::readLong(stream); // always 0
+  ext.param1 = utility::readLong(stream);  // always 32
+  ext.param2 = utility::readLong(stream);  // always 16
+  ext.param3 = utility::readLong(stream); // always 0
 
           // GIDX
   std::string gidx_label;
@@ -114,12 +112,7 @@ void TextureData::Write(std::ofstream& stream) {
   utility::writeShort(stream, width);
   utility::writeShort(stream, height);
 
-  utility::writeLong(stream, unknown2);
-  utility::writeLong(stream, unknown3);
-  utility::writeLong(stream, unknown4);
-  utility::writeLong(stream, unknown5);
-  utility::writeLong(stream, unknown6);
-  utility::writeLong(stream, unknown7);
+  utility::padStream(stream, 0, 6 * 4);
 
   if (mipmap_size.size() > 1) {
     for (int i = 0; i < mipmap_size.size(); i++) {
@@ -130,9 +123,9 @@ void TextureData::Write(std::ofstream& stream) {
   }
 
   stream.write("eXt\0", 4);
-  utility::writeLong(stream, ext.unknown8);
-  utility::writeLong(stream, ext.unknown9);
-  utility::writeLong(stream, ext.unknown10);
+  utility::writeLong(stream, ext.param1);
+  utility::writeLong(stream, ext.param2);
+  utility::writeLong(stream, ext.param3);
 
   stream.write("GIDX", 4);
   utility::writeLong(stream, gidx.unknown11);
@@ -153,7 +146,7 @@ boost::json::value TextureData::toJson() const {
   boost::json::array m_array(mipmap_size.begin(), mipmap_size.end());
   mipmap["array"] = m_array;
   root["mipmap"] = mipmap;
-  root["eXt"] = { { "param1", ext.unknown8 }, { "param2", ext.unknown9 }, { "param3", ext.unknown10 } };
+  root["eXt"] = { { "param1", ext.param1 }, { "param2", ext.param2 }, { "param3", ext.param3 } };
   root["GIDX"] = { { "param1", gidx.unknown11 }, { "param2", gidx.GIDX }, { "param3", gidx.unknown12 } };
   return boost::json::value(root);
 }
@@ -174,9 +167,9 @@ std::pair<bool, std::string> TextureData::fromJson(boost::json::value const& val
     }
 
     auto ext_value = root["eXt"].as_object();
-    ext.unknown8 = ext_value["param1"].as_int64();
-    ext.unknown9 = ext_value["param2"].as_int64();
-    ext.unknown10 = ext_value["param3"].as_int64();
+    ext.param1 = ext_value["param1"].as_int64();
+    ext.param2 = ext_value["param2"].as_int64();
+    ext.param3 = ext_value["param3"].as_int64();
     auto gidx_value = root["GIDX"].as_object();
     gidx.unknown11 = gidx_value["param1"].as_int64();
     gidx.GIDX = gidx_value["param2"].as_int64();
@@ -213,7 +206,8 @@ std::pair<bool, std::string> TextureData::exportDDS(std::filesystem::path const&
       header.ddpfPixelFormat.dwFourCC = '5TXD';
       break;
     case 19:
-              // RGB32
+      // RGB32
+      [[fallthrough]];
     case 20:
       // ARGB32
       header.dwFlags = 0x0002100F;
@@ -251,7 +245,8 @@ std::pair<bool, std::string> TextureData::exportDDS(std::filesystem::path const&
   std::ranges::copy(texture_tmp, dds_data.begin() + sizeof(header));
 
   std::ostringstream fname_steam;
-  fname_steam << gidx.GIDX << ".dds";
+  auto const last_dir = extract_dir_path.filename();
+  fname_steam << last_dir.string() << "_" << gidx.GIDX << ".dds";
   auto const filename = fname_steam.str();
   auto const endpath = extract_dir_path / filename;
 
@@ -401,7 +396,8 @@ std::pair<bool, std::string> NUT::ImportDDS(const std::filesystem::path& dirpath
   size_t texture_count = 0;
   for (auto& texture : texture_data) {
     std::ostringstream fname_steam;
-    fname_steam << texture.gidx.GIDX << ".dds";
+    auto const last_dir = dirpath.filename();
+    fname_steam << last_dir.string() << "_" << texture.gidx.GIDX << ".dds";
     auto const filename = fname_steam.str();
     auto const endpath = dirpath / filename;
     if (!std::filesystem::exists(endpath)) {

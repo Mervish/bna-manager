@@ -14,10 +14,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(QT NAMES Qt6 Qt5 COMPONENTS Widgets REQUIRED)
 find_package(Qt${QT_VERSION_MAJOR} COMPONENTS Widgets REQUIRED)
 
-set(Boost_USE_STATIC_LIBS OFF)
-set(Boost_USE_MULTITHREADED ON)
-set(Boost_USE_STATIC_RUNTIME OFF)
-find_package(Boost QUIET REQUIRED)
+set(Boost_USE_STATIC_LIBS ON)
+find_package(Boost REQUIRED json)
 
 set(PROJECT_SOURCES
         main.cpp
@@ -72,8 +70,6 @@ else()
     endif()
 endif()
 
-target_link_libraries(BNATool PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
-
 target_include_directories(BNATool PRIVATE ./../libsquish)
 
 set_target_properties(BNATool PROPERTIES
@@ -96,49 +92,64 @@ qt_add_executable(BNAMaster
     filetypes/scb.cpp
     filetypes/msg.h
     filetypes/msg.cpp
+    filetypes/scenario.h
+    filetypes/scenario.cpp
 )
 
 if(QT_VERSION_MAJOR EQUAL 6)
     qt_finalize_executable(BNAMaster)
 endif()
 
-qt_add_executable(bxrconvert
+add_executable(bxrconvert
     WIN32
     tools/bxrconvert.cpp
     filetypes/bxr.h
     filetypes/bxr.cpp
 )
 
+target_link_libraries(bxrconvert PRIVATE Qt${QT_VERSION_MAJOR}::Core)
+
 if(QT_VERSION_MAJOR EQUAL 6)
     qt_finalize_executable(bxrconvert)
 endif()
 
-qt_add_executable(bnaunpack
+add_executable(bnaunpack
     WIN32
     tools/bnaunpack.cpp
     filetypes/bna.h
     filetypes/bna.cpp
 )
 
-target_link_libraries(bnaunpack PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
-
-if(QT_VERSION_MAJOR EQUAL 6)
-    qt_finalize_executable(bnaunpack)
-endif()
-
 add_executable(nutunpack
-tools/nutunpack.cpp
-filetypes/nut.h
-filetypes/nut.cpp
-utility/commandline.h)
+    tools/nutunpack.cpp
+    filetypes/nut.h
+    filetypes/nut.cpp
+    utility/commandline.h)
+
+add_executable(imaspatcher
+    tools/imaspatcher.cpp
+    filetypes/bna.h
+    filetypes/bna.cpp
+    filetypes/bxr.h
+    filetypes/bxr.cpp
+    filetypes/scb.h
+    filetypes/scb.cpp
+    filetypes/msg.h
+    filetypes/msg.cpp
+    filetypes/nut.h
+    filetypes/nut.cpp
+    filetypes/scenario.h
+    filetypes/scenario.cpp
+    utility/commandline.h
+    utility/filetype.h)
 
 if(Boost_FOUND)
     include_directories(${Boost_INCLUDE_DIRS})
-    target_link_libraries(BNATool ${Boost_LIBRARIES})
-    target_link_libraries(BNAMaster ${Boost_LIBRARIES})
+    target_link_libraries(BNATool PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
+        ${Boost_LIBRARIES})
+    target_link_libraries(imaspatcher PRIVATE Qt${QT_VERSION_MAJOR}::Core ${Boost_LIBRARIES})
+    target_link_libraries(BNAMaster PRIVATE Qt${QT_VERSION_MAJOR}::Widgets ${Boost_LIBRARIES})
     target_link_libraries(nutunpack ${Boost_LIBRARIES})
 endif()
 
-
-target_link_libraries(BNAMaster PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
 

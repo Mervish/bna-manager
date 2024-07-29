@@ -1,5 +1,4 @@
-#ifndef STDHACKS_H
-#define STDHACKS_H
+#pragma once
 
 #include <bit>
 #include <algorithm>
@@ -13,5 +12,3 @@ constexpr T byteswap(T value) noexcept
   std::ranges::reverse(value_representation);
   return std::bit_cast<T>(value_representation);
 }
-
-#endif // STDHACKS_H

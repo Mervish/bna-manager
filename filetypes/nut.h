@@ -1,6 +1,6 @@
 #pragma once
 
-#include "boost/json/value.hpp"
+#include <boost/json.hpp>
 #include <filesystem>
 #include <map>
 #include <string>
@@ -33,9 +33,9 @@ struct TextureData {
 
   // eXt
   struct {
-    int unknown8;
-    int unknown9;
-    int unknown10;
+    int param1;
+    int param2;
+    int param3;
   }ext;
 
   // GIDX

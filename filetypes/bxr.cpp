@@ -9,6 +9,8 @@
 #include <boost/range/adaptors.hpp>
 #include <boost/iostreams/device/array.hpp>
 #include <boost/iostreams/stream.hpp>
+#include <boost/archive/xml_iarchive.hpp>
+#include <boost/archive/xml_oarchive.hpp>
 
 namespace adaptor = boost::adaptors;
 

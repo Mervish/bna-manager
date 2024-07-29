@@ -6,10 +6,6 @@
 #include <vector>
 #include <filesystem>
 
-#include <QJsonArray>
-#include <QJsonDocument>
-#include <QJsonObject>
-
 #include "msg.h"
 
 namespace imas {

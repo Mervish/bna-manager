@@ -7,8 +7,6 @@
 #include <string>
 #include <vector>
 
-#include <QJsonArray>
-
 //#define BXR_DEBUG_LINKS
 
 //*********.bxr
@@ -42,9 +40,6 @@ public:
       return readXML(openpath);
     }
     void reset();
-
-    //QJsonArray getJson();
-    //std::pair<bool, std::string> setJson(const QJsonValue &json);
 
     std::pair<bool, std::string> readXML(std::filesystem::path const& filepath);
     std::pair<bool, std::string> writeXML(std::filesystem::path const& filepath);

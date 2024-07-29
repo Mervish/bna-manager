@@ -1,8 +1,8 @@
 #pragma once
 
 #include <string>
+#include <ranges>
 #include <filesystem>
-#include <QString>
 
 namespace imas {
 namespace path {
@@ -21,18 +21,6 @@ std::filesystem::path applySuffix(std::filesystem::path const& origin, std::stri
   return path;
 }
 
-/*QString changeExtension(QString const& path) {
-
-}
-
-QString applySuffix(QString const& path) {
-
-}*/
-
-QString removeExtension(QString const& path) {
-  return path.mid(path.lastIndexOf('/') + 1, path.lastIndexOf('.') - path.lastIndexOf('/') - 1);
-}
-
 bool isEmptyRecursive(std::filesystem::path dir) {
   return std::ranges::none_of(std::filesystem::recursive_directory_iterator(dir),
                            [](std::filesystem::path const &path) {
@@ -40,6 +28,31 @@ bool isEmptyRecursive(std::filesystem::path dir) {
                            });
 }
 
+template<typename _Pred>
+void iterateFiles(std::filesystem::path const& gamepath, std::string const& type,
+                _Pred const& callback) {
+  auto const iter = std::filesystem::recursive_directory_iterator(gamepath);
+  for (auto const& file :
+       iter
+           | std::views::filter(
+                  [&type](std::filesystem::directory_entry const& dir) {
+                   if (dir.is_regular_file()) {
+                     return dir.path().extension() == type;
+                   } else {
+                     return false;
+                   }
+                 })) {
+    callback(file.path());
+  }
+}
+
+std::vector<std::string> collectFilepaths(std::filesystem::path const& gamepath, std::string const& type) {
+  std::vector<std::string> files;
+  iterateFiles(gamepath, type, [&files](std::filesystem::path const& path) {
+    files.push_back(path.string());
+  });
+  return files;
+}
 
 }
 }

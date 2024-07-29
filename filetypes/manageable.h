@@ -1,6 +1,4 @@
-
-#ifndef ABSTRACTFILE_H
-#define ABSTRACTFILE_H
+#pragma once
 
 #include <map>
 #include <memory>
@@ -40,5 +38,3 @@ typedef std::map<std::string, std::unique_ptr<imas::file::Manageable>> ManagerMa
 
 } // namespace file
 } // namespace imas
-
-#endif // ABSTRACTFILE_H

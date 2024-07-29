@@ -2,15 +2,53 @@
 
 #include <utility/streamtools.h>
 
-#include <QJsonArray>
-#warning "Remove debug linkage!"
-#include <QFileInfo>
-
 #include <fstream>
+#include <numeric>
 
 namespace  {
 constexpr char padding_literal = 0xCD;
 constexpr auto offset_data_size = 0x10;
+constexpr auto newline_literal = u'\n';
+constexpr auto newline_string_literal = u"\n";
+constexpr auto newline_string = u"\\n";
+
+template<typename CharT>
+std::vector<std::basic_string_view<CharT>> split(std::basic_string_view<CharT> str, char delimiter) {
+  std::vector<std::basic_string_view<CharT>> result;
+  size_t start = 0;
+  size_t end = str.find(delimiter);
+  while (end != std::basic_string_view<CharT>::npos) {
+    result.push_back(str.substr(start, end - start));
+    start = end + 1;
+    end = str.find(delimiter, start);
+  }
+  result.push_back(str.substr(start));
+  return result;
+}
+
+//find '\n' and replace them with "\n"
+std::u16string convertNewlineCommand(std::u16string const& str) {
+    std::u16string result;
+    for (auto it = str.begin(); it != str.end(); ++it) {
+        if (*it == newline_literal) {
+            result += newline_string;
+        } else {
+            result += *it;
+        }
+    }
+    return result;
+}
+
+//find "\n" and replace them with '\n'
+std::u16string restoreNewlineCommand(std::u16string const& str) {
+    std::u16string result(str);
+    std::size_t found = result.find(newline_string);
+    while (found != std::u16string::npos) {
+        result.replace(found, 2, std::u16string(newline_string_literal));
+        found = result.find(newline_string, 1);
+    }
+    return result;
+}
 }
 
 namespace imas {
@@ -23,8 +61,6 @@ void MSG::loadFromFile(const std::string &filename) {
         return;
     }
     openFromStream(stream);
-    qInfo() << "File size = " << QFileInfo(QString::fromStdString(filename)).size();
-    qInfo() << "Calculated size = " << calculateSize();
 }
 
 void MSG::saveToFile(const std::string &filename)
@@ -68,25 +104,52 @@ void MSG::saveToData(std::vector<char> &data) {
     saveToStream(data_stream);
 }
 
-std::pair<bool, std::string> MSG::setJson(QJsonValue const &json) {
-    auto const array = json.toArray();
-    if (array.size() != m_entries.size()) {
-        return {false, "MSG string injection error: Count mismatch. Expected " + std::to_string(m_entries.size()) + ", got " + std::to_string(array.size()) + ". Are you loading the correct file?"};
+std::pair<bool, std::string> MSG::exportCSV(std::filesystem::path const& filepath) const{
+    std::basic_ofstream<char16_t> stream(filepath);
+    if(!stream.is_open()){
+        return {false, "Failed to open file"};
     }
-
-    m_entries.clear();
-    for (auto const &value : array) {
-        m_entries.push_back({.data = value.toString().toStdU16String()});
+    stream << std::u16string(u"original;translated;translation notes;issues\n");
+    for(auto const& entry : m_entries){
+        stream << convertNewlineCommand(entry.data) << u";;;\n";
     }
     return {true, ""};
 }
 
-QJsonArray MSG::getJson() {
-    QJsonArray msg_json;
-    for (auto const &msg : m_entries) {
-        msg_json.append(QString::fromStdU16String(msg.data));
+std::pair<bool, std::string> MSG::importCSV(std::filesystem::path const& filepath){
+    std::basic_ifstream<char16_t> stream(filepath);
+    if(!stream.is_open()){
+        return {false, "Failed to open file"};
     }
-    return msg_json;
+    //skip the table header
+    stream.ignore(std::numeric_limits<std::streamsize>::max(), u'\n');
+    std::vector<std::u16string> lines;
+    while (!stream.eof()) {
+        std::u16string line;
+        std::getline(stream, line, u'\n');
+        lines.push_back(line);
+    }
+    //last line may be empty
+    if(lines.back().empty()) {
+      lines.resize(lines.size() - 1);
+    }
+    
+    if(lines.size() != m_entries.size()) {
+        return {false, "Failed to parse line. Wrong number of entries"};
+    }
+
+    m_entries.clear();
+    for(auto const& line: lines)  {
+        //we need second token
+        int const token_begin_pos = line.find_first_of(';');
+        int const token_end_pos = line.find_first_of(';', token_begin_pos + 1);
+        if(token_end_pos == line.npos){
+            return {false, "Failed to parse line. Wrong format"};
+        }
+        m_entries.push_back({.data = restoreNewlineCommand(line.substr(token_begin_pos + 1, token_end_pos - token_begin_pos - 1))});
+    }
+
+    return {true, ""};
 }
 
 template <class S> void MSG::openFromStream(S &stream) {

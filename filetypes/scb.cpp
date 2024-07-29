@@ -3,9 +3,6 @@
 #include "utility/streamtools.h"
 #include "utility/datatools.h"
 
-#include <QDebug>
-
-#include <QFile>
 #include <fstream>
 #include <ranges>
 
@@ -29,9 +26,9 @@ namespace file {
 SCB::SCB()
 {
     m_api = {.extension = "scb",
-             .signature = "JSON file (*.json)",
+             .signature = "Comma separated values (*.CSV)",
              .extraction_title = "Extract strings...",
-             .injection_title = "Insert string..."};
+             .injection_title = "Import string..."};
 }
 
 void SCB::loadFromData(const std::vector<char> &data) {
@@ -68,28 +65,15 @@ void SCB::saveToFile(const std::filesystem::path& filename)
 MSG &SCB::msg_data() { return m_msg_data; }
 
 std::pair<bool, std::string> SCB::extract(std::filesystem::path const& savepath){
-  auto const data = QJsonDocument(m_msg_data.getJson()).toJson();
-  QFile file(savepath);
-  if (!file.open(QIODevice::WriteOnly | QIODevice::Text)){
-    return {false, "Failed to open file"};
-  }
-
-  file.write(data);
-  file.close();
-  return {true, ""};
+  return m_msg_data.exportCSV(savepath);
 }
 
 std::pair<bool, std::string> SCB::inject(std::filesystem::path const& openpath){
-  QFile file(openpath);
-  if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-    return {false, "Failed to open file" + openpath.string()};
+  auto const res = m_msg_data.importCSV(openpath);
+  if(res.first) {
+    rebuild();
   }
-
-  if(auto const res = m_msg_data.setJson(QJsonDocument::fromJson(file.readAll()).array()); !res.first){
-    return res;
-  }
-  rebuild();
-  return {true, ""};
+  return res;
 }
 
 template <class S> void SCB::openFromStream(S &stream) {

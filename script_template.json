@@ -1,0 +1,16 @@
+{
+	"bna": [
+		"files":[
+		{
+			"name": "root/path/something.bna",
+			"files": ["root/path/something.scb",
+				"root/path/something.nut",
+				"root/path/something.brx"]
+		}
+	],
+	"loose":[
+		"root/path/texture1.nut", "root/path/texture2.nut",
+		"root/path/texture1.scb", "root/path/texture2.scb",
+		"root/path/texture1.brx", "root/path/texture2.brx"
+	]
+}

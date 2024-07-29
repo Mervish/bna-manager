@@ -1,6 +1,4 @@
-
-#ifndef LOGGER_H
-#define LOGGER_H
+#pragma once
 
 #include <QObject>
 #include <QPlainTextEdit>
@@ -26,5 +24,3 @@ private:
     void log(LogMessageType type, const QString &message);
     QPlainTextEdit *m_log;
 };
-
-#endif // LOGGER_H

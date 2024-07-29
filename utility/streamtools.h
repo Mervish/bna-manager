@@ -1,5 +1,4 @@
-#ifndef STREAMTOOLS_H
-#define STREAMTOOLS_H
+#pragma once
 
 #include <fstream>
 #include <vector>
@@ -67,5 +66,3 @@ namespace utility {
   
 }
 }
-
-#endif // STREAMTOOLS_H

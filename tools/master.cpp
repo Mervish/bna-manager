@@ -1,16 +1,20 @@
 
+#include "utility/path.h"
 #include <QCoreApplication>
 #include <QFile>
-#include <QJsonObject>
 #include <QJsonArray>
+#include <QJsonObject>
+
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <ranges>
-#include <fstream>
+#include <set>
 
-#include "filetypes/bna.h"
-#include "filetypes/scb.h"
-#include "filetypes/msg.h"
+#include <filetypes/scenario.h>
+#include <filetypes/bna.h>
+#include <filetypes/msg.h>
+#include <filetypes/scb.h>
 
 //#define MAP_STRINGS
 
@@ -63,6 +67,26 @@ void getBNAStruct(std::filesystem::path const& gamepath) {
     iterateBNA(gamepath, printBNA);
 }
 
+void mapBNA(std::filesystem::path const& gamepath, std::set<std::string> const& filetypes, std::filesystem::path const& scenario_path) {
+  imas::file::OperationScenario scenario;
+  auto const mapBNAfile = [&gamepath, &filetypes, &scenario](std::filesystem::path const& filepath) {
+    imas::file::BNA bna;
+    if(auto const res = bna.loadFromFile(filepath); !res.first){
+      std::cout << "Failed to open " << filepath << " - " << res.second << std::endl;
+    }
+    auto const bna_rel_path = std::filesystem::relative(filepath, gamepath);
+    imas::file::OperationEntry op_entry{ .path = bna_rel_path };
+    for(auto const& filetype : filetypes) {  
+      auto const files = bna.getFiles(filetype);
+      for(auto const& file: files) {
+        op_entry.files.push_back(file.get().getFullPath());
+      }
+    }
+    scenario.entries.push_back(op_entry);
+  };
+  imas::path::iterateFiles(gamepath, "bna", mapBNAfile);
+}
+
 bool compareFiles(std::filesystem::path const& p1, std::filesystem::path const& p2) {
   std::ifstream f1(p1, std::ifstream::binary|std::ifstream::ate);
   std::ifstream f2(p2, std::ifstream::binary|std::ifstream::ate);
@@ -107,7 +131,7 @@ void rebuildAllBNA(std::filesystem::path const& gamepath) {
 }
 
 void getMasterScript(std::filesystem::path const& gamepath) {
-#ifdef MAP_STRINGS
+/*#ifdef MAP_STRINGS
   size_t line_counter = 0;
 #endif
   QJsonArray master_json;
@@ -183,7 +207,7 @@ void setMasterScript(std::filesystem::path const& gamepath, std::string const& s
         auto const dirPath = std::filesystem::path(bna_save_path).parent_path();
         std::filesystem::create_directories(dirPath);
         bna.saveToFile(bna_save_path);
-    }
+    }*/
 }
 
 int main(int argc, char *argv[])

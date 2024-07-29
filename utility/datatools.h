@@ -1,5 +1,4 @@
-#ifndef DATATOOLS_H
-#define DATATOOLS_H
+#pragma once
 
 #include <cstdint>
 
@@ -20,5 +19,3 @@ struct ByteMap{
   inline uint32_t endpoint() const { return offset + size; }
   inline uint32_t endpointPad(uint32_t pad_size = 0x80) const { return padValue(offset + size, pad_size); }
 };
-
-#endif // DATATOOLS_H
