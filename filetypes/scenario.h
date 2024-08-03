@@ -21,6 +21,7 @@ struct OperationScenario {
   std::vector<OperationEntry> entries;
   std::vector<std::string> loose;
   std::pair<bool, std::string> fromJSON(boost::json::value const& json);
+  std::pair<bool, std::string> fromFile(std::filesystem::path const& filepath);
   boost::json::value toJSON() const;
 };
 

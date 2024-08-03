@@ -69,7 +69,9 @@ namespace imas{
 namespace file{
 
 BXR::BXR(){
-    m_api = {.extension = "bxr",
+    m_api = {.base_extension = "bxr",
+             .final_extension = "xml",
+             .type = extractType::file,
              .signature = "XML file (*.xml)",
              .extraction_title = "Export as XML...",
              .injection_title = "Import from XML..."};

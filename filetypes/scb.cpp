@@ -4,7 +4,6 @@
 #include "utility/datatools.h"
 
 #include <fstream>
-#include <ranges>
 
 #include <boost/iostreams/device/array.hpp>
 #include <boost/iostreams/stream.hpp>
@@ -25,7 +24,9 @@ namespace file {
 
 SCB::SCB()
 {
-    m_api = {.extension = "scb",
+    m_api = {.base_extension = "scb",
+             .final_extension = "csv",
+             .type = extractType::file,
              .signature = "Comma separated values (*.CSV)",
              .extraction_title = "Extract strings...",
              .injection_title = "Import string..."};

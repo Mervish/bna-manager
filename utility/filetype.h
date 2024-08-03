@@ -14,7 +14,7 @@ enum class type
 };
 
 inline type getFileType(std::filesystem::path const& filepath) {
-  auto const ext = std::filesystem::path(filepath).extension();
+  auto const ext = std::filesystem::path(filepath).extension().string();
   if (ext == ".bna") {
     return type::bna;
   }

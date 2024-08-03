@@ -242,7 +242,7 @@ const std::vector<BNAFileEntry> &BNA::getFileData() const
 
 std::vector<std::reference_wrapper<BNAFileEntry> > const BNA::getFiles(std::string const &extension)
 {
-  auto filtered = m_file_data | adaptor::filtered([extension](auto& entry){
+  auto filtered = m_file_data | adaptor::filtered([&extension](auto& entry){
     return entry.file_name.substr(entry.file_name.find_last_of('.') + 1) == extension;
                         }) | adaptor::transformed([](auto& entry) { return std::reference_wrapper(entry); });
   for(auto const& entry: filtered) {

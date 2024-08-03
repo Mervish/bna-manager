@@ -72,10 +72,10 @@ void FileTableView::onItemMenu(QModelIndex const& index, QPoint const& pos) {
 
     auto const name = selectedIndexes().front().data().toString();
 
-    connections.push_back(connect(m_extract_action, &QAction::triggered, [this, name, extension = QString::fromStdString(api.extension)](){
+    connections.push_back(connect(m_extract_action, &QAction::triggered, [this, name, extension = QString::fromStdString(api.base_extension)](){
         emit dataExtractionRequested(name, extension);
     }));
-    connections.push_back(connect(m_inject_action, &QAction::triggered, [this, name, extension = QString::fromStdString(api.extension)](){
+    connections.push_back(connect(m_inject_action, &QAction::triggered, [this, name, extension = QString::fromStdString(api.base_extension)](){
         emit dataInjectionRequested(name, extension);
     }));
 

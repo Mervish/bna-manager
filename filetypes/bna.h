@@ -29,6 +29,9 @@ struct BNAFileEntry{
   std::string getFullPath() const {
     return std::string(dir_name) + '/' + file_name;
   }
+  BNAFileSignature getSignature() const {
+    return {std::string(dir_name), file_name};
+  }
 };
 
 class BNA

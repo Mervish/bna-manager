@@ -1,6 +1,5 @@
 
 #include <iostream>
-#include <set>
 
 #include "filetypes/bna.h"
 #include "filetypes/bxr.h"
@@ -10,7 +9,6 @@
 #include "utility/commandline.h"
 #include "utility/filetype.h"
 
-#include <fstream>
 
 #include <boost/json.hpp>
 
@@ -20,27 +18,36 @@ if (!std::filesystem::exists(patch_folder)) { \
   return {false, "Patch folder does not exist."}; \
 }
 
+// check if file exists
+#define CHECK_FILE(file) \
+if (!std::filesystem::exists(file)) { \
+  return {false, "File does not exist."}; \
+}
+
+// check if file exists and skip
+#define CHECK_FILE_SKIP(file) \
+if (!std::filesystem::exists(file)) { \
+  continue; \
+}
+
 constexpr auto help = "Idolm@ster patching tool."
 "Usage: imaspatcher <command> <game folder> <script file> <patch folder>"
 "Commands:"
 "  extract - exports game files to the patch folder"
 "  patch - patches game files with the files from the patch folder"
-"  generate - generates a script file from the patch folder"
-"  validate - validates the script file";
+/*"  generate - generates a script file from the patch folder"
+"  validate - validates the script file"*/;
 
-std::pair<bool, std::string> validate(imas::file::OperationScenario& scenario, std::filesystem::path const& game_folder, std::filesystem::path const& script_file) {
-  std::ifstream stream(script_file, std::ios_base::binary);
-  if (!stream.is_open()) {
-    return {false, "Failed to read scenario file."};
-  }
-  boost::json::value scenario_json;
-  stream >> scenario_json;
-  return scenario.fromJSON(scenario_json);
+template <class T>
+void replaceExtension(std::filesystem::path& path, T const& filetype) {
+  auto const ext = filetype.getApi().final_extension;
+  path.replace_extension(ext);
 }
 
-std::pair<bool, std::string> validate(std::filesystem::path const& game_folder, std::filesystem::path const& script_file) {
-  imas::file::OperationScenario scenario;
-  return validate(scenario, game_folder, script_file);
+void makeDirs(std::filesystem::path const& path) {
+  if (!std::filesystem::exists(path)) {
+    std::filesystem::create_directories(path);
+  }
 }
 
 std::pair<bool, std::string> extract(std::filesystem::path const& game_folder, std::filesystem::path const& script_file,
@@ -50,37 +57,52 @@ std::pair<bool, std::string> extract(std::filesystem::path const& game_folder, s
     std::filesystem::create_directories(patch_folder);
   }
   imas::file::OperationScenario scenario;
-  if(auto res = validate(scenario, game_folder, script_file); !res.first){
+  if(auto const res = scenario.fromFile(script_file); !res.first) {
     return res;
   }
   for(auto const& entry: scenario.entries) {
+    auto const original_path = game_folder / entry.path;
+    imas::file::BNA bna;
+    if(auto res = bna.loadFromFile(original_path); !res.first)
+    {
+       return res;
+    }
+    auto const& file_data = bna.getFileData();
     for(auto const& subentry: entry.files) {
-      auto const ext_type = imas::filetype::getFileType(subentry.extension());
-      auto const final_path = patch_folder / subentry;
-      imas::file::BNA bna;
-      if(auto res = bna.loadFromFile(entry.path); !res.first)
-      {
-         return res;
+      auto const it = std::find_if(file_data.begin(), file_data.end(), [subentry](auto const& file){
+              return subentry == file.getFullPath();
+            });
+      if (it == file_data.end()) {
+        continue;
       }
+      auto const signature = it->getSignature();
+      auto file = bna.getFile(signature);
+      auto const ext_type = imas::filetype::getFileType(subentry);
+      auto final_path = patch_folder / subentry;
       switch (ext_type) {
         case imas::filetype::type::bxr:
         {
           imas::file::BXR bxr;
-          bxr.loadFromFile(subentry);
+          replaceExtension(final_path, bxr);
+          makeDirs(final_path.parent_path());
+          bxr.loadFromData(file.file_data);
           bxr.extract(final_path);
         }
         break;
-        case imas::filetype::type::nut:
-        {
-          imas::file::NUT nut;
-          nut.LoadNUT(subentry);
-          nut.ExportDDS(final_path);
-        }
-        break;
+        // case imas::filetype::type::nut:
+        // {
+        //   imas::file::NUT nut;
+        //   final_path.replace_extension();
+        //   nut.LoadNUT(subentry);
+        //   nut.ExportDDS(final_path);
+        // }
+        // break;
         case imas::filetype::type::scb:
         {
           imas::file::SCB scb;
-          scb.loadFromFile(subentry);
+          replaceExtension(final_path, scb);
+          makeDirs(final_path.parent_path());
+          scb.loadFromData(file.file_data);
           scb.extract(final_path);
         }
         break;
@@ -96,10 +118,55 @@ std::pair<bool, std::string> patch(std::filesystem::path const& game_folder, std
                                    std::filesystem::path const& patch_folder) {
   CHECK_PATCH_FOLDER(patch_folder)
   imas::file::OperationScenario scenario;
-  if(auto res = validate(scenario, game_folder, script_file); !res.first){
+  if(auto const res = scenario.fromFile(script_file); !res.first) {
     return res;
   }
-
+  for(auto const& entry: scenario.entries) {
+    auto const original_path = game_folder / entry.path;
+    imas::file::BNA bna;
+    CONT_ON_ERROR(bna.loadFromFile(original_path))
+    //STOP_ON_ERROR_RET(bna.loadFromFile(original_path))
+    auto const& file_data = bna.getFileData();
+    for(auto const& subentry: entry.files) {
+      auto const it = std::find_if(file_data.begin(), file_data.end(), [subentry](auto const& file){
+              return subentry == file.getFullPath();
+            });
+      if (it == file_data.end()) {
+        continue;
+      }
+      auto const signature = it->getSignature();
+      auto &file = bna.getFile(signature);
+      auto const ext_type = imas::filetype::getFileType(subentry);
+      auto final_path = patch_folder / subentry;
+      switch (ext_type) {
+        case imas::filetype::type::bxr:
+        {
+          imas::file::BXR bxr;
+          replaceExtension(final_path, bxr);
+          CHECK_FILE_SKIP(final_path)
+          bxr.loadFromFile(final_path);
+          bxr.saveToData(file.file_data);
+        }
+        break;
+        //case imas::filetype::type::nut:
+        case imas::filetype::type::scb:
+        {
+          imas::file::SCB scb;
+          replaceExtension(final_path, scb);
+          CHECK_FILE_SKIP(final_path)
+          scb.loadFromData(file.file_data);
+          STOP_ON_ERROR_RET(scb.inject(final_path));
+          scb.saveToData(file.file_data);
+        }
+        break;
+        default:
+        return {false, "Unsupported file type."};
+      }
+    }
+    bna.saveToFile(original_path);
+    std::cout << "Patched file " << original_path << std::endl;
+  }
+  return {true, {"Patch applied"}};
 }
 
 std::pair<bool, std::string> generate(std::filesystem::path const& game_folder, std::filesystem::path const& script_file,
@@ -131,12 +198,12 @@ int main(int argc, char const *argv[])
         case 'p': {
             return printResult(patch(argv[2], argv[3], argv[4]));
         }
-        case 'g': {
-            return printResult(generate(argv[2], argv[3], argv[4]));
-        }
-        case 'v': {
-            return printResult(validate(argv[2], argv[3]));
-        }
+        // case 'g': {
+        //     return printResult(generate(argv[2], argv[3], argv[4]));
+        // }
+        // case 'v': {
+        //     return printResult(validate(argv[2], argv[3]));
+        // }
         default: {
             std::cout << help << std::endl;
             return 1;

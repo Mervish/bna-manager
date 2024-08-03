@@ -213,7 +213,7 @@ void MSG::saveToStream(S &stream)
     }
     //Finalizing
     utility::evenWriteStream(stream, padding_literal);
-    int size = stream.tellp().operator long long() - 32;
+    int32_t const size = int32_t(stream.tellp()) - 32;
     stream.seekp(offset_data_size);
     utility::writeLong(stream, size);
 }

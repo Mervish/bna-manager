@@ -143,6 +143,13 @@ add_executable(imaspatcher
     utility/commandline.h
     utility/filetype.h)
 
+add_executable(scbextract
+    tools/scbextract.cpp
+    filetypes/scb.cpp
+    filetypes/scb.h
+    filetypes/msg.cpp
+    filetypes/msg.h)
+
 if(Boost_FOUND)
     include_directories(${Boost_INCLUDE_DIRS})
     target_link_libraries(BNATool PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
@@ -150,6 +157,7 @@ if(Boost_FOUND)
     target_link_libraries(imaspatcher PRIVATE Qt${QT_VERSION_MAJOR}::Core ${Boost_LIBRARIES})
     target_link_libraries(BNAMaster PRIVATE Qt${QT_VERSION_MAJOR}::Widgets ${Boost_LIBRARIES})
     target_link_libraries(nutunpack ${Boost_LIBRARIES})
+    target_link_libraries(scbextract ${Boost_LIBRARIES})
 endif()
 
 

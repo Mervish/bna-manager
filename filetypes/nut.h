@@ -2,7 +2,6 @@
 
 #include <boost/json.hpp>
 #include <filesystem>
-#include <map>
 #include <string>
 #include <vector>
 
@@ -60,6 +59,17 @@ struct TextureData {
 
 struct NUT {
 public:
+  std::pair<bool, std::string> LoadNUT(std::filesystem::path const &filepath);
+  std::pair<bool, std::string> SaveNUT(std::filesystem::path const &filepath);
+  std::pair<bool, std::string>
+  ExportDDS(const std::filesystem::path &dirpath) const;
+  std::pair<bool, std::string> ImportDDS(
+      const std::filesystem::path &dirpath); // replaces textures in the file
+  std::pair<bool, std::string>
+  LoadDDS(const std::filesystem::path &dirpath); // builds nut from scratch
+  void reset();
+
+private:
   std::vector<TextureData> texture_data;
 
   int unknown0;
@@ -67,14 +77,6 @@ public:
   int unknown2;
   int unknown3;
   int unknown4;
-
-public:
-  std::pair<bool, std::string> LoadNUT(std::filesystem::path const& filepath);
-  std::pair<bool, std::string> SaveNUT(std::filesystem::path const& filepath);
-  std::pair<bool, std::string> ExportDDS(const std::filesystem::path& dirpath) const;
-  std::pair<bool, std::string> ImportDDS(const std::filesystem::path& dirpath); //replaces textures in the file
-  std::pair<bool, std::string> LoadDDS(const std::filesystem::path& dirpath); //builds nut from scratch
-  void reset();
 };
 
 struct DDS_HEADER {

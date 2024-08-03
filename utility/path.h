@@ -38,9 +38,8 @@ void iterateFiles(std::filesystem::path const& gamepath, std::string const& type
                   [&type](std::filesystem::directory_entry const& dir) {
                    if (dir.is_regular_file()) {
                      return dir.path().extension() == type;
-                   } else {
-                     return false;
                    }
+                   return false;
                  })) {
     callback(file.path());
   }

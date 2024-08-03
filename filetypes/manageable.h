@@ -12,9 +12,15 @@ namespace file {
 class Manageable
 {
 public:
+    enum class extractType{
+      file,
+      dir
+    };
     struct fileapi
     {
-        std::string extension;
+        std::string base_extension;
+        std::string final_extension;
+        extractType type = extractType::file;
         std::string signature;
         std::string extraction_title;
         std::string injection_title;

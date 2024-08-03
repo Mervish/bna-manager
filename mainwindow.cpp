@@ -2,6 +2,7 @@
 
 #include "about.h"
 #include "filetypes/bxr.h"
+#include "filetypes/nut.h"
 #include "filetypes/scb.h"
 
 #include <QMessageBox>
@@ -294,7 +295,7 @@ template<class T>
 void MainWindow::registerManager()
 {
   auto manager = std::make_unique<T>();         //Create an instance of the type
-  auto const key = manager->getApi().extension; //Get the key
+  auto const key = manager->getApi().base_extension; //Get the key
   m_filetypes_managers[key] = std::unique_ptr<imas::file::Manageable>(manager.release()); //Upcast and put in map
 }
 
