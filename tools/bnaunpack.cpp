@@ -2,11 +2,11 @@
 
 #include <iostream>
 
-constexpr auto help_text = "BNA (Un)Pack tool\n \
-                            To unpack a BNA file:\n \ 
-                            -bnaunpack <filename>\n \
-                            To pack a folder into a BNA file:\n \
-                            -bnaunpack <directory> or bnaunpack <directory> <filename>";
+constexpr auto help_text = "BNA (Un)Pack tool\n"
+                           "To unpack a BNA file:\n"
+                           "bnacmdtool <filename>\n"
+                           "To pack a folder into a BNA file:\n"
+                           "bnacmdtool <directory> or bnacmdtool <directory> <filename>";
 
 void unpackFile(std::filesystem::path const& filepath, std::filesystem::path const& dirpath)
 {

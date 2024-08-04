@@ -9,7 +9,6 @@
 #include <fstream>
 #include <iostream>
 #include <ranges>
-#include <set>
 
 #include <filetypes/bna.h>
 #include <filetypes/msg.h>
@@ -17,6 +16,10 @@
 #include <filetypes/scenario.h>
 
 // #define MAP_STRINGS
+
+constexpr auto help = "Idolm@ster BNA charting tool.\n"
+"Usage: BNAMaster map [extension] <gamepath> <scenario_path>\n"
+"maps bna's internal files according to [extension] and writes them into the <scenario_patch>";
 
 template <typename _Pred>
 void iterateBNA(std::filesystem::path const &gamepath, _Pred const &callback) {
@@ -143,8 +146,9 @@ void mapBNA(std::filesystem::path const &gamepath, std::string const &filetype,
 
 int main(int argc, char *argv[]) {
   if (argc < 2) {
-    std::cout << "Usage: BNAMaster <command> [filter] <gamepath> <scenario_path>"
-              << std::endl;
+    std::cout << help << std::endl;
+    std::string answer;
+    std::getline(std::cin, answer);
     return -1;
   }
 

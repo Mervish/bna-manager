@@ -30,12 +30,12 @@ if (!std::filesystem::exists(file)) { \
   continue; \
 }
 
-constexpr auto help = "Idolm@ster patching tool."
-"Usage: imaspatcher <command> <game folder> <script file> <patch folder>"
-"Commands:"
-"  extract - exports game files to the patch folder"
-"  patch - patches game files with the files from the patch folder"
-/*"  generate - generates a script file from the patch folder"
+constexpr auto help = "Idolm@ster patching tool.\n"
+"Usage: imaspatcher <command> <game folder> <script file> <patch folder>\n"
+"Commands:\n"
+"  extract - exports game files to the patch folder\n"
+"  patch - patches game files with the files from the patch folder\n"
+/*"  generate - generates a script file from the patch folder\n"
 "  validate - validates the script file"*/;
 
 template <class T>
@@ -179,6 +179,8 @@ int main(int argc, char const *argv[])
 {
     if (argc < 4) {
         std::cout << help << std::endl;
+        std::string answer;
+        std::getline(std::cin, answer);
         return 1;
     }
     //check if directory exists

@@ -18,6 +18,8 @@ int main(int argc, char *argv[])
 {
     if(argc < 2) {
         std::cout << "Usage: " << argv[0] << " <*.brx/*.xml>" << std::endl;
+        std::string answer;
+        std::getline(std::cin, answer);
         return 1;
     }
 

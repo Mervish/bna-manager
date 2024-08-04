@@ -6,9 +6,9 @@
 constexpr auto help_text =
     "NUT (Un)Pack tool\n"
     "To unpack a NUT file:\n"
-    "-nutunpack <filename>\n"
+    "nuttool <filename>\n"
     "To pack a folder into a NUT file:\n"
-    "-nutunpack <directory> or nutunpack <directory> <filename>";
+    "nuttool <directory> or nuttool <directory> <filename>";
 
 void unpackFile(std::filesystem::path const& filepath, std::filesystem::path const& dirpath)
 {

@@ -54,37 +54,36 @@ set(PROJECT_SOURCES
 set(APP_VERSION 0.5)
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
-    qt_add_executable(BNATool
+    qt_add_executable(BNAGUI
         WIN32
         ${PROJECT_SOURCES}
     )
 else()
     if(ANDROID)
-        add_library(BNATool SHARED
+        add_library(BNAGUI SHARED
             ${PROJECT_SOURCES}
         )
     else()
-        add_executable(BNATool
+        add_executable(BNAGUI
             ${PROJECT_SOURCES}
         )
     endif()
 endif()
 
-target_include_directories(BNATool PRIVATE ./../libsquish)
+target_include_directories(BNAGUI PRIVATE ./../libsquish)
 
-set_target_properties(BNATool PROPERTIES
-    OUTPUT_NAME BNATool
+set_target_properties(BNAGUI PROPERTIES
+    OUTPUT_NAME BNAGUI
     MACOSX_BUNDLE_GUI_IDENTIFIER my.example.com
     MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
     MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
 )
 
 if(QT_VERSION_MAJOR EQUAL 6)
-    qt_finalize_executable(BNATool)
+    qt_finalize_executable(BNAGUI)
 endif()
 
-qt_add_executable(BNAMaster
-    WIN32
+add_executable(BNAMaster
     tools/master.cpp
     filetypes/bna.h
     filetypes/bna.cpp
@@ -96,31 +95,25 @@ qt_add_executable(BNAMaster
     filetypes/scenario.cpp
 )
 
-if(QT_VERSION_MAJOR EQUAL 6)
-    qt_finalize_executable(BNAMaster)
-endif()
-
-add_executable(bxrconvert
-    WIN32
+add_executable(bxrtool
     tools/bxrconvert.cpp
     filetypes/bxr.h
     filetypes/bxr.cpp
 )
 
-target_link_libraries(bxrconvert PRIVATE Qt${QT_VERSION_MAJOR}::Core)
+target_link_libraries(bxrtool PRIVATE Qt${QT_VERSION_MAJOR}::Core)
 
 if(QT_VERSION_MAJOR EQUAL 6)
-    qt_finalize_executable(bxrconvert)
+    qt_finalize_executable(bxrtool)
 endif()
 
-add_executable(bnaunpack
-    WIN32
+add_executable(bnacmdtool
     tools/bnaunpack.cpp
     filetypes/bna.h
     filetypes/bna.cpp
 )
 
-add_executable(nutunpack
+add_executable(nuttool
     tools/nutunpack.cpp
     filetypes/nut.h
     filetypes/nut.cpp
@@ -143,7 +136,7 @@ add_executable(imaspatcher
     utility/commandline.h
     utility/filetype.h)
 
-add_executable(scbextract
+add_executable(scbtool
     tools/scbextract.cpp
     filetypes/scb.cpp
     filetypes/scb.h
@@ -152,12 +145,12 @@ add_executable(scbextract
 
 if(Boost_FOUND)
     include_directories(${Boost_INCLUDE_DIRS})
-    target_link_libraries(BNATool PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
+    target_link_libraries(BNAGUI PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
         ${Boost_LIBRARIES})
     target_link_libraries(imaspatcher PRIVATE Qt${QT_VERSION_MAJOR}::Core ${Boost_LIBRARIES})
     target_link_libraries(BNAMaster PRIVATE Qt${QT_VERSION_MAJOR}::Widgets ${Boost_LIBRARIES})
-    target_link_libraries(nutunpack ${Boost_LIBRARIES})
-    target_link_libraries(scbextract ${Boost_LIBRARIES})
+    target_link_libraries(nuttool ${Boost_LIBRARIES})
+    target_link_libraries(scbtool ${Boost_LIBRARIES})
 endif()
 
 
