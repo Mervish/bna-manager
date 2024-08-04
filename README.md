@@ -1,17 +1,19 @@
-# BNATool
-Extractor/packer for the .bna archives used in the Namco game THE iDOLM@STER.
+# BNAGUI
+GUI tool for exploring internal structure of imas1 BNA files and extacting/packing data from them. Supports 2-level extraction for certain formats: i.e. you can extact(or inject) string from the SCB-file contained in BNA without extracting SCB-file itself.
 
 # BNAMaster
-Extractor/packer for the game's spoken text. Gathers text from the game into the .json file. And can apply text from the .json file to the game.
+Jack of all trades utility for operating with BNA-files on masse. Currently retooled to create script files.
+
+# imaspatcher
+Extracts data or injects it back to the game. Works with script files made by BNAMaster.
+
+# Command line tools
+[formatname]tool. Dedicated command-line tools for extraction of various formats. Low priority, since batch work would be done by imaspatcher. Some of them broken.
 
 # Build
 Requires Qt6 and Boost. Uses C++20.
 
-# Features
-- Complete extraction of .bna contents to and packing from the folders.
-- Extraction/replacement of files in .bna archives 
-- On-the-fly conversion of supported filetypes directly from the .bna archive without the need to unpack the files.
-
 # Supported formats
 - SCB: Can unpack/repack unicode from the .scb's internal MSG-section. Used to replace (translate) game's spoken text.
 - BXR: Can convert .bxr files to their (assumed) .xml origin.
+- NUT: Command line only. Converts game's NUT-textures to DDS and back.
