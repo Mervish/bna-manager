@@ -11,9 +11,9 @@ Extracts data or injects it back to the game. Works with script files made by BN
 [formatname]tool. Dedicated command-line tools for extraction of various formats. Low priority, since batch work would be done by imaspatcher. Some of them broken.
 
 # Build
-Requires Qt6 and Boost. Uses C++20.
+Uses C++23, Qt6 and Boost 1.81.
 
 # Supported formats
 - SCB: Can unpack/repack unicode from the .scb's internal MSG-section. Used to replace (translate) game's spoken text.
 - BXR: Can convert .bxr files to their (assumed) .xml origin.
-- NUT: Command line only. Converts game's NUT-textures to DDS and back.
+- NUT: Converts game's NUT-textures to DDS and back. Since the format is an archive, it creates directory and extracts into it.
