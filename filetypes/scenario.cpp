@@ -24,7 +24,7 @@ void jsonArrayToIntArray(std::vector<Val>& array, boost::json::array const& json
 namespace imas {
 namespace file {
 
-std::pair<bool, std::string> OperationEntry::fromJSON(const boost::json::value& json) {
+Result OperationEntry::fromJSON(const boost::json::value& json) {
   if (!json.is_object()) {
     return {false, "invalid entry structure."};
   }
@@ -61,7 +61,7 @@ boost::json::value OperationEntry::toJSON() const {
   return json_obj;
 }
 
-std::pair<bool, std::string> OperationScenario::fromJSON(const boost::json::value& json) {
+Result OperationScenario::fromJSON(const boost::json::value& json) {
   if(!json.is_object()) {
     return {false, "Invalid script-file structure."};
   }
@@ -90,14 +90,22 @@ std::pair<bool, std::string> OperationScenario::fromJSON(const boost::json::valu
   return {true, ""};
 }
 
-std::pair<bool, std::string> OperationScenario::fromFile(std::filesystem::path const& filepath) {
+Result OperationScenario::fromFile(std::filesystem::path const& filepath) {
   std::ifstream stream(filepath);
   if (!stream.is_open()) {
     return {false, "Failed to open file."};
   }
-  boost::json::value json;
-  stream >> json;
-  return OperationScenario::fromJSON(json);
+  boost::json::error_code ec;
+  boost::json::parse_options options;
+  //options.allow_comments;
+  options.allow_invalid_utf8 = true;
+  //options.allow_trailing_commas;
+  //options.max_depth;
+  boost::json::value value = boost::json::parse(stream, ec, {}, options);
+  if (ec) {
+    return {false, "Failed to parse file: " + std::string(ec.message())};
+  }
+  return OperationScenario::fromJSON(value);
 }
 
 boost::json::value OperationScenario::toJSON() const

@@ -1,4 +1,5 @@
 
+#include "filetypes/nut.h"
 #include "utility/path.h"
 #include <QCoreApplication>
 #include <QFile>
@@ -162,6 +163,36 @@ int main(int argc, char *argv[]) {
     mapBNA(gamepath, filetype, scenario_path);
   }
 
+  if (command == "compare") {
+    auto const nut_path = std::string(argv[2]);
+    auto const bna_path = std::string(argv[3]);
+    auto const nut_subpath = std::string(argv[4]);
+    imas::file::BNA bna;
+    bna.loadFromFile(bna_path);
+    auto const& file_data = bna.getFileData();
+    auto const it = std::find_if(file_data.begin(), file_data.end(), [nut_subpath](auto const& file){
+              return nut_subpath == file.getFullPath();
+            });
+    if (it == file_data.end()) {
+      return 1;
+    }
+    auto const signature = it->getSignature();
+    auto file = bna.getFile(signature);
+    imas::file::NUT sub_nut;
+    sub_nut.loadFromData(file.file_data);
+    imas::file::NUT nut;
+    nut.loadFromFile(nut_path);
+    auto const& texture1 = nut.texture_data.front().raw_texture;
+    auto const& texture2 = sub_nut.texture_data.front().raw_texture;
+    std::cout << (std::equal(texture1.begin(), texture1.end(), texture2.begin()) ? "SAME" : "DIFFERENT") << std::endl;
+    auto const path = nut_path.substr(0, nut_path.find_last_of('.')) + "\\" + "original";
+    auto const sub_path = nut_path.substr(0, nut_path.find_last_of('.')) + "\\" + "sub";
+    std::filesystem::create_directories(path);
+    std::filesystem::create_directories(sub_path);
+    nut.extract(path);
+    sub_nut.extract(sub_path);
+    return 0;
+  }
 
   // switch (argc) {
   // case 2: {

@@ -2,8 +2,6 @@
 
 #include "filetypes/manageable.h"
 #include <filesystem>
-#include <fstream>
-#include <numeric>
 #include <string>
 #include <vector>
 
@@ -27,23 +25,12 @@ namespace file {
 class BXR : public Manageable
 {
 public:
-    BXR();
-    // Manageable interface
-    virtual void loadFromData(const std::vector<char>& data) override;
-    virtual void loadFromFile(std::filesystem::path const& filename) override;
-    virtual void saveToData(std::vector<char>& data) override;
-    virtual void saveToFile(std::filesystem::path const& filename) override;
-    virtual std::pair<bool, std::string> extract(const std::filesystem::path& savepath) override{
-      return writeXML(savepath);
-    }
-    virtual std::pair<bool, std::string> inject(const std::filesystem::path& openpath) override{
-      return readXML(openpath);
-    }
+    Fileapi api() const override;
+    virtual Result extract(const std::filesystem::path& savepath) const override;
+    virtual Result inject(const std::filesystem::path& openpath) override;
     void reset();
-
-    std::pair<bool, std::string> readXML(std::filesystem::path const& filepath);
-    std::pair<bool, std::string> writeXML(std::filesystem::path const& filepath);
-
+  protected:
+    virtual size_t size() const override;
   private:
     struct Offsetable {
       //raw data
@@ -105,16 +92,17 @@ public:
     std::vector<SubScriptEntry> m_sub_items;
     std::string m_property_name = "symbol";
 
-    template<class S> std::pair<bool, std::string> openFromStream(S &stream);
-    template<class S> std::pair<bool, std::string> saveToStream(S &stream);
+    Result openFromStream(std::basic_istream<char> *stream) override;
+    Result saveToStream(std::basic_ostream<char> *stream) override;
     //size calculation
     uint32_t getUnicodeSize() const;
-    uint32_t calculateSize() const;
     uint32_t calculateStringSize() const;
     //rebuilding
     void setUnicodeData(std::vector<char>& output);
     template<class T>
     void insertIntoQueue(std::vector<T>& origin, std::vector<imas::file::BXR::Offsetable*>& output);
+
+    // Manageable interface
 };
 
 } // namespace file

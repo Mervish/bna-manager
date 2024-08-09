@@ -7,7 +7,6 @@
 #include <boost/range/combine.hpp>
 #include <boost/json.hpp>
 
-#include <unordered_set>
 
 namespace  {
 #warning Dublicate code. "streamtools.h" already contains similar function. There is probably
@@ -92,7 +91,7 @@ void BNA::sortFileData()
   });
 }
 
-std::pair<bool, std::string> BNA::loadFromFile(std::filesystem::path const& filepath)
+Result BNA::loadFromFile(std::filesystem::path const& filepath)
 {
   m_filepath = filepath;
 
@@ -221,16 +220,16 @@ void BNA::saveToFile(std::filesystem::path const& filepath)
   }
   //Let's start actual writing
   stream.write("BNA0", 4);
-  imas::utility::writeLong(stream, m_file_data.size());
+  imas::utility::writeLong(&stream, m_file_data.size());
   for(auto const& file : m_file_data){
-    imas::utility::writeLong(stream, file.offsets.dir_name);
-    imas::utility::writeLong(stream, file.offsets.file_name);
-    imas::utility::writeLong(stream, file.offsets.file_data.offset);
-    imas::utility::writeLong(stream, file.offsets.file_data.size);
+    imas::utility::writeLong(&stream, file.offsets.dir_name);
+    imas::utility::writeLong(&stream, file.offsets.file_name);
+    imas::utility::writeLong(&stream, file.offsets.file_data.offset);
+    imas::utility::writeLong(&stream, file.offsets.file_data.size);
   }
   stream.write(namebuf.data(), namebuf.size());
   for(auto const& file_data : m_file_data){
-    imas::utility::evenWriteStream(stream, padding_char, 0x80);
+    imas::utility::evenWriteStream(&stream, padding_char, 0x80);
     stream.write(file_data.file_data.data(), file_data.file_data.size());
   }
 }

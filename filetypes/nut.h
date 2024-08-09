@@ -1,8 +1,8 @@
 #pragma once
 
+#include "filetypes/manageable.h"
 #include <boost/json.hpp>
 #include <filesystem>
-#include <string>
 #include <vector>
 
 
@@ -47,29 +47,34 @@ struct TextureData {
   // raw data of image
   std::vector<char> raw_texture;
 
-  bool Load(std::ifstream &stream);
-  void Write(std::ofstream& stream);
+  bool Load(std::basic_istream<char> *stream);
+  void Write(std::basic_ostream<char> *stream);
+
+  int16_t headerSize() const;
+  int32_t calculateSize() const;
 
   boost::json::value toJson() const;
-  std::pair<bool, std::string> fromJson(boost::json::value const& value);
+  Result fromJson(boost::json::value const& value);
   //TO DO: Maybe add size validation
-  std::pair<bool, std::string> exportDDS(std::filesystem::path const& extract_dir_path) const;
-  std::pair<bool, std::string> importDDS(std::filesystem::path const& filepath);
+  Result exportDDS(std::filesystem::path const& extract_dir_path) const;
+  Result importDDS(std::filesystem::path const& filepath);
 };
 
-struct NUT {
+struct NUT : public Manageable {
 public:
-  std::pair<bool, std::string> LoadNUT(std::filesystem::path const &filepath);
-  std::pair<bool, std::string> SaveNUT(std::filesystem::path const &filepath);
-  std::pair<bool, std::string>
-  ExportDDS(const std::filesystem::path &dirpath) const;
-  std::pair<bool, std::string> ImportDDS(
-      const std::filesystem::path &dirpath); // replaces textures in the file
-  std::pair<bool, std::string>
+  Manageable::Fileapi api() const override;
+  Result
   LoadDDS(const std::filesystem::path &dirpath); // builds nut from scratch
   void reset();
 
-private:
+  virtual Result extract(std::filesystem::path const& savepath) const override;
+  virtual Result inject(std::filesystem::path const& openpath) override;
+
+//protected:
+  Result openFromStream(std::basic_istream<char> *stream) override;
+  Result saveToStream(std::basic_ostream<char> *stream) override;
+  size_t size() const override;
+//private:
   std::vector<TextureData> texture_data;
 
   int unknown0;

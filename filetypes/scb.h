@@ -2,7 +2,6 @@
 
 #include <filetypes/manageable.h>
 
-#include <string>
 #include <vector>
 #include <filesystem>
 
@@ -31,24 +30,19 @@ struct ScbData {
 
 class SCB : public Manageable {
 public:
-  SCB();
-  void loadFromData(std::vector<char> const &data) override;
-  void loadFromFile(std::filesystem::path const& filename) override;
-  void saveToData(std::vector<char> &data) override;
-  void saveToFile(std::filesystem::path const& filename) override;
+  Fileapi api() const override;
   void rebuild();
   MSG &msg_data();
 
   //virtuals
-  virtual std::pair<bool, std::string> extract(std::filesystem::path const& savepath) override;
-  virtual std::pair<bool, std::string> inject(std::filesystem::path const& openpath) override;
+  virtual Result extract(std::filesystem::path const& savepath) const override;
+  virtual Result inject(std::filesystem::path const& openpath) override;
 
 private:
-  template<class S> void openFromStream(S &stream);
-  template<class S> void saveToStream(S &stream);
+  Result openFromStream(std::basic_istream<char> *stream) override;
+  Result saveToStream(std::basic_ostream<char> *stream) override;
   void updateSectionData();
-  uint32_t headerSize() const;
-  uint32_t calculateSize() const;
+  size_t size() const override;
 
   std::array<char, 0x5C> m_header_cache;
   ScbData m_sections;

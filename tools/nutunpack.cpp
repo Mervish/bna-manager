@@ -13,12 +13,12 @@ constexpr auto help_text =
 void unpackFile(std::filesystem::path const& filepath, std::filesystem::path const& dirpath)
 {
   imas::file::NUT nut;
-  STOP_ON_ERROR(nut.LoadNUT(filepath));
+  STOP_ON_ERROR(nut.loadFromFile(filepath));
   //check if folder exists
   if (!std::filesystem::exists(dirpath)) {
     std::filesystem::create_directory(dirpath);
   }
-  printResult(nut.ExportDDS(dirpath));
+  printResult(nut.extract(dirpath));
 }
 
 void unpackFile(std::filesystem::path const& filepath)
@@ -30,7 +30,7 @@ void unpackFile(std::filesystem::path const& filepath)
 void packDir(std::filesystem::path const& dirpath, std::filesystem::path const& filepath) {
   imas::file::NUT nut;
   STOP_ON_ERROR(nut.LoadDDS(dirpath));
-  nut.SaveNUT(filepath);
+  nut.saveToFile(filepath);
 }
 
 void packDir(std::filesystem::path const& dirpath) {

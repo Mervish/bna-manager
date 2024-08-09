@@ -68,52 +68,21 @@ bool filterCandidateType(Candidate const& entry) {
 namespace imas{
 namespace file{
 
-BXR::BXR(){
-    m_api = {.base_extension = "bxr",
-             .final_extension = "xml",
-             .type = extractType::file,
-             .signature = "XML file (*.xml)",
-             .extraction_title = "Export as XML...",
-             .injection_title = "Import from XML..."};
+Manageable::Fileapi BXR::api() const {
+  static auto const api = Fileapi{.base_extension = "bxr",
+                          .final_extension = "xml",
+                          .type = ExtractType::file,
+                          .signature = "XML file (*.xml)",
+                          .extraction_title = "Export as XML...",
+                          .injection_title = "Import from XML..."};
+  return api;
 }
 
-void BXR::loadFromData(const std::vector<char> &data) {
-    boost::iostreams::array_source asource(data.data(), data.size());
-    boost::iostreams::stream<boost::iostreams::array_source> data_stream{asource};
-    openFromStream(data_stream);
-}
-
-void BXR::saveToData(std::vector<char> &data)
-{
-    data.resize(calculateSize());
-    boost::iostreams::array_sink asink(data.data(), data.size());
-    boost::iostreams::stream<boost::iostreams::array_sink> data_stream{asink};
-    saveToStream(data_stream);
-}
-
-void BXR::loadFromFile(const std::filesystem::path& filename) {
-    std::ifstream stream(filename, std::ios_base::binary);
-    if (!stream.is_open()) {
-        return;
-    }
-    openFromStream(stream);
-}
-
-void BXR::saveToFile(const std::filesystem::path& filename)
-{
-    std::ofstream stream(filename, std::ios_base::binary);
-    if(!stream.is_open()){
-        return;
-    }
-    saveToStream(stream);
-}
-
-template<class S>
-std::pair<bool, std::string> BXR::openFromStream(S &stream)
+Result BXR::openFromStream(std::basic_istream<char> *stream)
 {
     std::string label;
     label.resize(4);
-    stream.read(label.data(), 4);
+    stream->read(label.data(), 4);
 
     if(bxr_label != label) {
         return {false, "Wrong filetype? File label mismatch."};
@@ -170,7 +139,7 @@ std::pair<bool, std::string> BXR::openFromStream(S &stream)
     // BLOCK5
     // Then we read some sort of symbolic data
     std::vector<char> symbol(sizes.symbol_offset);
-    stream.read(symbol.data(), symbol.size());
+    stream->read(symbol.data(), symbol.size());
 
     //
     // 解釈
@@ -246,15 +215,15 @@ std::pair<bool, std::string> BXR::openFromStream(S &stream)
     return {true, "File succesfully loaded."};
 }
 
-std::pair<bool, std::string> BXR::writeXML(std::filesystem::path const &filepath)
+Result BXR::extract(std::filesystem::path const &savepath) const
 {
-    QFile file(filepath);
+    QFile file(savepath);
     if(!file.open(QIODevice::WriteOnly)){
         return {false, "Unable to open the file"};
     }
     QXmlStreamWriter xml_writer(&file);
     xml_writer.setAutoFormatting(true);
-    std::vector<std::pair<MainScriptEntry*,int>> base_entry_list;
+    std::vector<std::pair<const MainScriptEntry*,int>> base_entry_list;
     for(auto& entry: m_main_items) {
         base_entry_list.emplace_back(&entry, 0);
     }
@@ -300,7 +269,7 @@ std::pair<bool, std::string> BXR::writeXML(std::filesystem::path const &filepath
     return {true, ""};
 }
 
-std::pair<bool, std::string> BXR::readXML(std::filesystem::path const& filepath)
+Result BXR::inject(std::filesystem::path const& openpath)
 {
     auto const processAtributes = [this](QXmlStreamAttributes const& attributes)
         -> std::tuple<std::string, std::u16string, CandidateType> {
@@ -331,7 +300,7 @@ std::pair<bool, std::string> BXR::readXML(std::filesystem::path const& filepath)
       return {value, unicode, type};
     };
     reset();
-    QFile file(filepath);
+    QFile file(openpath);
     if (!file.open(QIODevice::ReadOnly)) {
         return {false, "Unable to open the file."};
     }
@@ -498,7 +467,7 @@ uint32_t BXR::calculateStringSize() const {
     return string_count + getUnicodeSize();
 }
 
-uint32_t BXR::calculateSize() const {
+size_t BXR::size() const {
     uint32_t const string_size = calculateStringSize();
     uint32_t label = 4;                        // label
     uint32_t offsets = (5 * 4);                // offsets
@@ -533,8 +502,7 @@ void BXR::insertIntoQueue(std::vector<T>& origin, std::vector<imas::file::BXR::O
     output.insert(output.end(), transformed_range.begin(), transformed_range.end());
 }
 
-template<class S>
-std::pair<bool, std::string> BXR::saveToStream(S &stream) {
+Result BXR::saveToStream(std::basic_ostream<char> *stream) {
     // 1. Let's start building the string chunk
     std::vector<Offsetable*> offset_queue;
 
@@ -559,7 +527,7 @@ std::pair<bool, std::string> BXR::saveToStream(S &stream) {
 
     // Write label
     std::string label{bxr_label};
-    stream.write(label.data(), label.size());
+    stream->write(label.data(), label.size());
 
     // Write base offsets
     imas::utility::writeLong(stream, m_main_tags.size());
@@ -600,7 +568,7 @@ std::pair<bool, std::string> BXR::saveToStream(S &stream) {
     }
 
     //. Write string chunk
-    stream.write(string_library.data(), string_library.size());
+    stream->write(string_library.data(), string_library.size());
     return {true, ""};
 }
 
@@ -621,7 +589,7 @@ void BXR::reset() {
 //    return BXR_json;
 //}
 
-//std::pair<bool, std::string> BXR::setJson(const QJsonValue& json)
+//Result BXR::setJson(const QJsonValue& json)
 //{
 //    auto const array = json.toArray();
 //    if (array.size() != unicode_containing_entries.size()) {

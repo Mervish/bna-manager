@@ -15,5 +15,6 @@ public:
 signals:
 
 private:
+    QString m_dir_path;
     QMap<QString, QString> m_path_data;
 };

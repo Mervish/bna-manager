@@ -1,5 +1,6 @@
 #pragma once
 
+#include "filetypes/manageable.h"
 #include "utility/datatools.h"
 
 #include <filesystem>
@@ -18,26 +19,21 @@ struct MSGEntry{
 constexpr int32_t msg_count_offset = 0x20;
 constexpr int32_t msg_header_offset = 0x30;
 
-class MSG {
+class MSG : public Manageable {
+    //MSG is not a real fuletype, but it uses pretty much all of the standard "Manageable" architecture
    public:
-    MSG();
-    void loadFromData(std::vector<char> const &data);
-    void loadFromFile(const std::string &filename);
-    void saveToData(std::vector<char> &data);
-    void saveToFile(const std::string &filename);
-    std::pair<bool, std::string> exportCSV(std::filesystem::path const& filename) const;
-    std::pair<bool, std::string> importCSV(std::filesystem::path const &csv);
+    Fileapi api() const override;
+    Result extract(std::filesystem::path const& filename) const override;
+    Result inject(std::filesystem::path const &csv) override;
 
    private:
-    template <class S>
-    void openFromStream(S &stream);
-    template <class S>
-    void saveToStream(S &stream);
+    Result openFromStream(std::basic_istream<char> *stream) override;
+    Result saveToStream(std::basic_ostream<char> *stream) override;
     std::vector<char> m_static_header;  // Data coming before string header
     std::vector<MSGEntry> m_entries;
     uint32_t headerSize() const;
     uint32_t stringsSize() const;
-    uint32_t calculateSize() const;
+    size_t size() const override;
 };
 
 } // namespace file

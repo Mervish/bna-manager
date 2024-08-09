@@ -1,10 +1,12 @@
 #pragma once
 
 #include "utility/datatools.h"
+#include "utility/result.h"
 
 #include <filesystem>
 #include <fstream>
 #include <map>
+#include <vector>
 
 namespace imas {
 namespace file {
@@ -38,7 +40,7 @@ class BNA
 {
 public:
   // working with files
-  std::pair<bool, std::string> loadFromFile(std::filesystem::path const& filepath);
+  Result loadFromFile(std::filesystem::path const& filepath);
   void saveToFile(std::filesystem::path const& filepath);
   bool loadFromDir(std::filesystem::path const& dirpath);
   void extractAllToDir(std::filesystem::path const& dirpath);

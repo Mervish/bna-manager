@@ -60,7 +60,7 @@ void FileTableView::startDrag(Qt::DropActions supportedActions)
 void FileTableView::onItemMenu(QModelIndex const& index, QPoint const& pos) {
   auto const type = model()->data(index.siblingAtColumn(1)).toString().toStdString();
   if(auto const man = m_filetypes_managers->find(type); man != m_filetypes_managers->end()){
-    auto const api = man->second->getApi();
+    auto const api = man->second->api();
 
     for(auto &connection: connections) {
         disconnect(connection);

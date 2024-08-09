@@ -8,7 +8,7 @@ set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(QT NAMES Qt6 Qt5 COMPONENTS Widgets REQUIRED)
@@ -42,6 +42,7 @@ set(PROJECT_SOURCES
         utility/path.h
         utility/pathsaver.h
         utility/pathsaver.cpp
+        utility/result.h
         about.h
         about.cpp
         about.ui
@@ -91,6 +92,8 @@ add_executable(BNAMaster
     filetypes/scb.cpp
     filetypes/msg.h
     filetypes/msg.cpp
+    filetypes/nut.cpp
+    filetypes/nut.h
     filetypes/scenario.h
     filetypes/scenario.cpp
 )

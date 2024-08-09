@@ -5,6 +5,9 @@
 #include <fstream>
 
 #include <boost/range/adaptor/transformed.hpp>
+#include <boost/iostreams/device/array.hpp>
+#include <boost/iostreams/stream.hpp>
+#include <utility/datatools.h>
 
 namespace bjson = boost::json;
 
@@ -27,7 +30,7 @@ void changeEndian4(std::vector<char> &target) {
 namespace imas {
 namespace file {
 
-bool TextureData::Load(std::ifstream& stream) {
+bool TextureData::Load(std::basic_istream<char> *stream) {
   // texture header
   int texture_data_size = utility::readLong(stream);
   unknown0 = utility::readLong(stream); // always 0
@@ -46,7 +49,7 @@ bool TextureData::Load(std::ifstream& stream) {
   //unknown6 = utility::readLong(stream); // always 0
   //unknown7 = utility::readLong(stream); // always 0
 
-  stream.ignore(6 * 4);
+  stream->ignore(6 * 4);
 
   if (nMipmap > 1) {
     mipmap_size.resize(nMipmap);
@@ -63,7 +66,7 @@ bool TextureData::Load(std::ifstream& stream) {
           // EXT
   std::string ext_label;
   ext_label.resize(4);
-  stream.read(ext_label.data(), 4);
+  stream->read(ext_label.data(), 4);
   if(std::string{'e', 'X', 't', '\0'} != ext_label) {
     return false;
   }
@@ -75,7 +78,7 @@ bool TextureData::Load(std::ifstream& stream) {
           // GIDX
   std::string gidx_label;
   gidx_label.resize(4);
-  stream.read(gidx_label.data(), 4);
+  stream->read(gidx_label.data(), 4);
   if("GIDX" != gidx_label) {
     return false;
   }
@@ -85,22 +88,15 @@ bool TextureData::Load(std::ifstream& stream) {
   gidx.unknown12 = utility::readLong(stream); // always 0
 
   raw_texture.resize(image_data_size);
-  stream.read(raw_texture.data(), image_data_size);
-
-          //Decompress();
-
+  stream->read(raw_texture.data(), image_data_size);
   return true;
 }
 
-void TextureData::Write(std::ofstream& stream) {
-  int header_size =
-      4 + 4 + 4 + 2 + 2 + 2 + 2 + 2 + 2 + 4 + 4 + 4 + 4 + 4 + 4; // 48
-  if (mipmap_size.size() > 1)
-    header_size += ((mipmap_size.size() - 1) / 16 + 1) * 16;
-  header_size += 16 + 16; // eXt + GIDX
+void TextureData::Write(std::basic_ostream<char> *stream) {
+  auto const header_size = headerSize();
 
-  int image_data_size = raw_texture.size();
-  int texture_data_size = header_size + image_data_size;
+  int32_t const image_data_size = raw_texture.size();
+  int32_t const texture_data_size = header_size + image_data_size;
 
   utility::writeLong(stream, texture_data_size);
   utility::writeLong(stream, unknown0);
@@ -122,17 +118,25 @@ void TextureData::Write(std::ofstream& stream) {
     //pFile->WriteNullArray((16 - mipmap_size.size() % 16) % 16);
   }
 
-  stream.write("eXt\0", 4);
+  stream->write("eXt\0", 4);
   utility::writeLong(stream, ext.param1);
   utility::writeLong(stream, ext.param2);
   utility::writeLong(stream, ext.param3);
 
-  stream.write("GIDX", 4);
+  stream->write("GIDX", 4);
   utility::writeLong(stream, gidx.unknown11);
   utility::writeLong(stream, gidx.GIDX);
   utility::writeLong(stream, gidx.unknown12);
 
-  stream.write(raw_texture.data(), raw_texture.size());
+  stream->write(raw_texture.data(), raw_texture.size());
+}
+
+int16_t TextureData::headerSize() const {
+  return 48 + (mipmap_size.size() > 1 ? ((mipmap_size.size() - 1) / 16 + 1) * 16 : 0) + 16 + 16;
+}
+
+int32_t TextureData::calculateSize() const {
+  return headerSize() + raw_texture.size();
 }
 
 boost::json::value TextureData::toJson() const {
@@ -151,7 +155,7 @@ boost::json::value TextureData::toJson() const {
   return boost::json::value(root);
 }
 
-std::pair<bool, std::string> TextureData::fromJson(boost::json::value const& value) {
+Result TextureData::fromJson(boost::json::value const& value) {
   auto root = value.as_object();
   try{
     pixel_type = root["pixel_type"].as_int64();
@@ -181,7 +185,7 @@ std::pair<bool, std::string> TextureData::fromJson(boost::json::value const& val
   return {true, ""};
 }
 
-std::pair<bool, std::string> TextureData::exportDDS(std::filesystem::path const& extract_dir_path) const
+Result TextureData::exportDDS(std::filesystem::path const& extract_dir_path) const
 {
   DDS_HEADER header{0};
 
@@ -259,7 +263,7 @@ std::pair<bool, std::string> TextureData::exportDDS(std::filesystem::path const&
 }
 
 //Replaces the contents of the texture with the contents of the DDS file
-std::pair<bool, std::string> TextureData::importDDS(const std::filesystem::path& filepath)
+Result TextureData::importDDS(const std::filesystem::path& filepath)
 {
   std::ifstream stream(filepath, std::ios_base::binary);
   if (!stream.is_open()) {
@@ -308,11 +312,7 @@ std::pair<bool, std::string> TextureData::importDDS(const std::filesystem::path&
   return {true, filepath.string()};
 }
 
-std::pair<bool, std::string> NUT::LoadNUT(const std::filesystem::__cxx11::path& filepath) {
-  std::ifstream stream(filepath, std::ios_base::binary);
-  if (!stream.is_open()) {
-    return {false, "Failed to open file."};
-  }
+Result NUT::openFromStream(std::basic_istream<char> *stream) {
   if (utility::readLong(stream) != 'NTXR') {
     return {false, "Wrong signature in the file. Probably not a NUT file."};
   }
@@ -335,17 +335,12 @@ std::pair<bool, std::string> NUT::LoadNUT(const std::filesystem::__cxx11::path& 
   return {true, "Successfully loaded NUT file."};
 }
 
-std::pair<bool, std::string> NUT::SaveNUT(const std::filesystem::__cxx11::path& filepath) {
+Result NUT::saveToStream(std::basic_ostream<char> *stream) {
   if(texture_data.size() == 0) {
     return {false, "No texture data to save."};
   }
 
-  std::ofstream stream(filepath, std::ios_base::binary);
-  if (!stream.is_open()) {
-    return {false, "Failed to open file."};
-  }
-
-  stream.write("NTXR", 4);
+  stream->write("NTXR", 4);
 
   utility::writeShort(stream, unknown0);
   utility::writeShort(stream, texture_data.size());
@@ -360,7 +355,7 @@ std::pair<bool, std::string> NUT::SaveNUT(const std::filesystem::__cxx11::path& 
   return {true, "Successfully saved NUT file."};
 }
 
-std::pair<bool, std::string> NUT::ExportDDS(std::filesystem::path const& dirpath) const {
+Result NUT::extract(std::filesystem::path const& savepath) const {
   bjson::object nut_data;
   nut_data["texture_count"] = (int)texture_data.size();
   nut_data["unknown0"] = unknown0;
@@ -374,7 +369,7 @@ std::pair<bool, std::string> NUT::ExportDDS(std::filesystem::path const& dirpath
   }
   nut_data["texture_data"] = texture_value;
 
-  std::ofstream stream(dirpath / "meta.json", std::ios_base::binary);
+  std::ofstream stream(savepath / "meta.json", std::ios_base::binary);
   if (!stream.is_open()) {
     return {false, "Failed to write the meta.json file."};
   }
@@ -383,7 +378,7 @@ std::pair<bool, std::string> NUT::ExportDDS(std::filesystem::path const& dirpath
   std::stringstream result_str;
   result_str << "Exporting " << texture_data.size() << " textures to DDS format..." << std::endl << "Exported files:" << std::endl;
   for (auto const& texture : texture_data) {
-    if(auto const res = texture.exportDDS(dirpath); res.first){
+    if(auto const res = texture.exportDDS(savepath); res.first){
       result_str << res.second;
     }else{
       return res;
@@ -392,7 +387,7 @@ std::pair<bool, std::string> NUT::ExportDDS(std::filesystem::path const& dirpath
   return {true, result_str.str()};
 }
 
-std::pair<bool, std::string> NUT::ImportDDS(const std::filesystem::path& dirpath) {
+Result NUT::inject(const std::filesystem::path& dirpath) {
   size_t texture_count = 0;
   for (auto& texture : texture_data) {
     std::ostringstream fname_steam;
@@ -413,7 +408,15 @@ std::pair<bool, std::string> NUT::ImportDDS(const std::filesystem::path& dirpath
   return {true, result_str.str()};
 }
 
-std::pair<bool, std::string> NUT::LoadDDS(std::filesystem::path const& dirpath)
+Manageable::Fileapi NUT::api() const{
+  static auto const api = Fileapi{.base_extension = "nut",
+                          .type = ExtractType::dir,
+                          .extraction_title = "Extract DDS...",
+                          .injection_title = "Import DDS..."};
+  return api;
+}
+
+Result NUT::LoadDDS(std::filesystem::path const& dirpath)
 {
   reset();
   //read metadata
@@ -464,6 +467,16 @@ std::pair<bool, std::string> NUT::LoadDDS(std::filesystem::path const& dirpath)
 
 void NUT::reset() {
   texture_data.clear();
+}
+
+size_t NUT::size() const
+{
+  ByteCounter counter { 16 }; // header size
+  for(auto const& section: texture_data) {
+      counter.addSize(section.calculateSize());
+      counter.pad(0x10);
+  }
+  return counter.offset;
 }
 
 } // namespace file

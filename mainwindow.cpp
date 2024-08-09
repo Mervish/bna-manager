@@ -48,6 +48,7 @@ MainWindow::MainWindow(QWidget *parent)
   //filetypes managers
   registerManager<imas::file::SCB>();
   registerManager<imas::file::BXR>();
+  registerManager<imas::file::NUT>();
 
   ui->setupUi(this);
   setAcceptDrops(true);
@@ -166,26 +167,44 @@ MainWindow::MainWindow(QWidget *parent)
   //manager dependand actions
   connect(ui->fileTableView, &FileTableView::dataExtractionRequested, [this](QString const& filename, QString const& key){
       auto &manager = m_filetypes_managers.at(key.toStdString());
-      m_save_file_dialog.setNameFilter(QString::fromStdString(manager->getApi().signature));
-      m_save_file_dialog.selectFile(filename.left(filename.lastIndexOf('.')));
-      if(!m_path_saver.interrogate(m_save_file_dialog)) { return; }
+      QString path;
+      if(manager->api().type == imas::file::Manageable::ExtractType::file) {
+        m_save_file_dialog.setNameFilter(QString::fromStdString(manager->api().signature));
+        m_save_file_dialog.selectFile(filename.left(filename.lastIndexOf('.')));
+        if(!m_path_saver.interrogate(m_save_file_dialog)) { return; }
+        path = m_save_file_dialog.selectedFiles().first();
+      }else{
+        if(!m_path_saver.interrogate(m_folder_dialog)) { return; }
+        path = m_folder_dialog.selectedFiles().first();
+        path += '/' + filename.left(filename.lastIndexOf('.'));
+        if (!std::filesystem::exists(path.toStdString())) {
+            std::filesystem::create_directory(path.toStdString());
+        }
+      }
       auto const& file = bna.getFile({m_file_table_model.currentDir().toStdString(), filename.toStdString()});
       manager->loadFromData(file.file_data);
-      if(auto const res = manager->extract(m_save_file_dialog.selectedFiles().first().toStdString()); !res.first) {
+      if(auto const res = manager->extract(path.toStdString()); !res.first) {
           m_logger->error(QString::fromStdString(res.second));
           return;
       }
-      m_logger->info(QString("Extracted data from %1 to %2").arg(filename, m_save_file_dialog.selectedFiles().first()));
+      m_logger->info(QString("Extracted data from %1 to %2").arg(filename, path));
   });
   connect(ui->fileTableView, &FileTableView::dataInjectionRequested, [this](QString const& filename, QString const& key){
       auto &manager = m_filetypes_managers.at(key.toStdString());
-      m_open_file_dialog.setNameFilter(QString::fromStdString(manager->getApi().signature));
-      m_open_file_dialog.selectFile(filename.left(filename.lastIndexOf('.')));
-      if(!m_path_saver.interrogate(m_open_file_dialog)) { return; }
+      QString path;
+      if(manager->api().type == imas::file::Manageable::ExtractType::file) {
+        m_open_file_dialog.setNameFilter(QString::fromStdString(manager->api().signature));
+        m_open_file_dialog.selectFile(filename.left(filename.lastIndexOf('.')));
+        if(!m_path_saver.interrogate(m_open_file_dialog)) { return; }
+        path = m_open_file_dialog.selectedFiles().first();
+      }else{
+        if(!m_path_saver.interrogate(m_folder_dialog)) { return; }
+        path = m_folder_dialog.selectedFiles().first();
+      }
       auto& file = bna.getFile({m_file_table_model.currentDir().toStdString(), filename.toStdString()});
       manager->loadFromData(file.file_data);
       //failed injection should not modify the BNA
-      if(auto const res = manager->inject(m_open_file_dialog.selectedFiles().first().toStdString()); !res.first) {
+      if(auto const res = manager->inject(path.toStdString()); !res.first) {
           m_logger->error(QString::fromStdString(res.second));
           return;
       }
@@ -212,7 +231,7 @@ MainWindow::MainWindow(QWidget *parent)
       auto const path = std::filesystem::path(path_string.toStdString());
       bxr.loadFromFile(path);
       //bxr.save(imas::path::applySuffix(path, "_r").string());
-      bxr.writeXML(imas::path::changeExtension(path, "xml"));
+      bxr.extract(imas::path::changeExtension(path, "xml"));
   });
 
   setFilePathString(text_file_label_none);
@@ -295,7 +314,7 @@ template<class T>
 void MainWindow::registerManager()
 {
   auto manager = std::make_unique<T>();         //Create an instance of the type
-  auto const key = manager->getApi().base_extension; //Get the key
+  auto const key = manager->api().base_extension; //Get the key
   m_filetypes_managers[key] = std::unique_ptr<imas::file::Manageable>(manager.release()); //Upcast and put in map
 }
 

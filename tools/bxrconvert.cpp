@@ -39,11 +39,11 @@ int main(int argc, char *argv[])
         bxr.loadFromFile(path);
         path.replace_extension(".xml");
         if (rewriteCheck(path)) {
-            bxr.writeXML(path);
+            bxr.extract(path);
             std::cout << "Saved to " << path << std::endl;
         }
     } else {
-        bxr.readXML(path);
+        bxr.inject(path);
         path.replace_extension(".bxr");
         if (rewriteCheck(path)) {
             bxr.saveToFile(path);

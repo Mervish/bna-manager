@@ -53,30 +53,6 @@ std::u16string restoreNewlineCommand(std::u16string const& str) {
 
 namespace imas {
 namespace file {
-MSG::MSG() {}
-
-void MSG::loadFromFile(const std::string &filename) {
-    std::ifstream stream(filename, std::ios_base::binary);
-    if (!stream.is_open()) {
-        return;
-    }
-    openFromStream(stream);
-}
-
-void MSG::saveToFile(const std::string &filename)
-{
-    std::ofstream stream(filename, std::ios_base::binary);
-    if(!stream.is_open()){
-        return;
-    }
-    saveToStream(stream);
-}
-
-void MSG::loadFromData(const std::vector<char> &data) {
-    boost::iostreams::array_source asource(data.data(), data.size());
-    boost::iostreams::stream<boost::iostreams::array_source> data_stream{asource};
-    openFromStream(data_stream);
-}
 
 uint32_t MSG::headerSize() const {
     auto const entry_count = m_entries.size();
@@ -89,7 +65,7 @@ uint32_t MSG::stringsSize() const {
     });
 }
 
-uint32_t MSG::calculateSize() const {
+size_t MSG::size() const {
     ByteCounter counter{32 + headerSize()};
     counter.pad(0x10);
     counter.addSize(stringsSize());
@@ -97,14 +73,17 @@ uint32_t MSG::calculateSize() const {
     return counter.offset;
 }
 
-void MSG::saveToData(std::vector<char> &data) {
-    data.resize(calculateSize());
-    boost::iostreams::array_sink asink(data.data(), data.size());
-    boost::iostreams::stream<boost::iostreams::array_sink> data_stream{asink};
-    saveToStream(data_stream);
+Manageable::Fileapi MSG::api() const {
+  static auto const api = Fileapi{.base_extension = "msg",
+                          .final_extension = "csv",
+                          .type = ExtractType::file,
+                          .signature = "Comma separated values (*.CSV)",
+                          .extraction_title = "Extract strings...",
+                          .injection_title = "Import string..."};
+  return api;
 }
 
-std::pair<bool, std::string> MSG::exportCSV(std::filesystem::path const& filepath) const{
+Result MSG::extract(std::filesystem::path const& filepath) const {
     std::basic_ofstream<char16_t> stream(filepath);
     if(!stream.is_open()){
         return {false, "Failed to open file"};
@@ -116,7 +95,7 @@ std::pair<bool, std::string> MSG::exportCSV(std::filesystem::path const& filepat
     return {true, ""};
 }
 
-std::pair<bool, std::string> MSG::importCSV(std::filesystem::path const& filepath){
+Result MSG::inject(std::filesystem::path const& filepath){
     std::basic_ifstream<char16_t> stream(filepath);
     if(!stream.is_open()){
         return {false, "Failed to open file"};
@@ -152,14 +131,14 @@ std::pair<bool, std::string> MSG::importCSV(std::filesystem::path const& filepat
     return {true, ""};
 }
 
-template <class S> void MSG::openFromStream(S &stream) {
+Result MSG::openFromStream(std::basic_istream<char> *stream) {
     std::string label;
     label.resize(4);
-    stream.read(label.data(), 4);
-    stream.seekg(msg_count_offset);
+    stream->read(label.data(), 4);
+    stream->seekg(msg_count_offset);
     auto count = imas::utility::readShort(stream);
     m_entries.resize(count);
-    stream.seekg(msg_header_offset);
+    stream->seekg(msg_header_offset);
     for (auto &entry : m_entries) {
         entry.map.size = imas::utility::readLong(stream);
         entry.map.offset = imas::utility::readLong(stream);
@@ -168,24 +147,24 @@ template <class S> void MSG::openFromStream(S &stream) {
     // msg uses offsets relative to the zero point.
     // Moreover, zero point is not defined in the header, so i'm just gonna assume
     // it goes straight after header
-    size_t const zero_point = stream.tellg();
+    size_t const zero_point = stream->tellg();
     for (auto &entry : m_entries) {
-        stream.seekg(zero_point + entry.map.offset);
+        stream->seekg(zero_point + entry.map.offset);
         //Let's strip terminating character from the string
         entry.data.resize((entry.map.size - 1) / 2);
         for (auto &wide : entry.data) {
             wide = imas::utility::readShort(stream);
         }
     }
+    return {true, ""};
 }
 
-template<class S>
-void MSG::saveToStream(S &stream)
+Result MSG::saveToStream(std::basic_ostream<char> *stream)
 {
     //Let's fill header
-    stream.write("MSG", 3);
+    stream->write("MSG", 3);
     utility::padStream(stream, 0, 12);
-    stream.put(0x45);
+    stream->put(0x45);
     utility::padStream(stream, 0, 16);
     //Write string count
     utility::writeShort(stream, m_entries.size()); //string count
@@ -213,9 +192,10 @@ void MSG::saveToStream(S &stream)
     }
     //Finalizing
     utility::evenWriteStream(stream, padding_literal);
-    int32_t const size = int32_t(stream.tellp()) - 32;
-    stream.seekp(offset_data_size);
+    int32_t const size = int32_t(stream->tellp()) - 32;
+    stream->seekp(offset_data_size);
     utility::writeLong(stream, size);
+    return {true, ""};
 }
 
 } // namespace file

@@ -1,8 +1,10 @@
 #pragma once
 
+#include <algorithm>
 #include <string>
 #include <ranges>
 #include <filesystem>
+#include <vector>
 
 namespace imas {
 namespace path {

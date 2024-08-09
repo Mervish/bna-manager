@@ -40,7 +40,7 @@ constexpr auto help = "Idolm@ster patching tool.\n"
 
 template <class T>
 void replaceExtension(std::filesystem::path& path, T const& filetype) {
-  auto const ext = filetype.getApi().final_extension;
+  auto const ext = filetype.api().final_extension;
   path.replace_extension(ext);
 }
 
@@ -50,7 +50,7 @@ void makeDirs(std::filesystem::path const& path) {
   }
 }
 
-std::pair<bool, std::string> extract(std::filesystem::path const& game_folder, std::filesystem::path const& script_file,
+imas::file::Result extract(std::filesystem::path const& game_folder, std::filesystem::path const& script_file,
                                      std::filesystem::path const& patch_folder) {
   // create the patch folder if it doesn't exist
   if (!std::filesystem::exists(patch_folder)) {
@@ -69,7 +69,7 @@ std::pair<bool, std::string> extract(std::filesystem::path const& game_folder, s
     }
     auto const& file_data = bna.getFileData();
     for(auto const& subentry: entry.files) {
-      auto const it = std::find_if(file_data.begin(), file_data.end(), [subentry](auto const& file){
+      auto const it = std::find_if(file_data.begin(), file_data.end(), [subentry](auto const& file) {
               return subentry == file.getFullPath();
             });
       if (it == file_data.end()) {
@@ -89,14 +89,15 @@ std::pair<bool, std::string> extract(std::filesystem::path const& game_folder, s
           bxr.extract(final_path);
         }
         break;
-        // case imas::filetype::type::nut:
-        // {
-        //   imas::file::NUT nut;
-        //   final_path.replace_extension();
-        //   nut.LoadNUT(subentry);
-        //   nut.ExportDDS(final_path);
-        // }
-        // break;
+        case imas::filetype::type::nut:
+        {
+          imas::file::NUT nut;
+          final_path.replace_extension();
+          std::filesystem::create_directories(final_path);
+          nut.loadFromData(file.file_data);
+          nut.extract(final_path);
+        }
+        break;
         case imas::filetype::type::scb:
         {
           imas::file::SCB scb;
@@ -114,7 +115,7 @@ std::pair<bool, std::string> extract(std::filesystem::path const& game_folder, s
   return {true, {}};
 }
 
-std::pair<bool, std::string> patch(std::filesystem::path const& game_folder, std::filesystem::path const& script_file,
+imas::file::Result patch(std::filesystem::path const& game_folder, std::filesystem::path const& script_file,
                                    std::filesystem::path const& patch_folder) {
   CHECK_PATCH_FOLDER(patch_folder)
   imas::file::OperationScenario scenario;
@@ -148,7 +149,16 @@ std::pair<bool, std::string> patch(std::filesystem::path const& game_folder, std
           bxr.saveToData(file.file_data);
         }
         break;
-        //case imas::filetype::type::nut:
+        case imas::filetype::type::nut:
+        {
+          imas::file::NUT nut;
+          final_path.replace_extension();
+          CHECK_FILE_SKIP(final_path)
+          nut.loadFromData(file.file_data);
+          STOP_ON_ERROR_RET(nut.inject(final_path));
+          nut.saveToData(file.file_data);
+        }
+        break;
         case imas::filetype::type::scb:
         {
           imas::file::SCB scb;
@@ -167,12 +177,6 @@ std::pair<bool, std::string> patch(std::filesystem::path const& game_folder, std
     std::cout << "Patched file " << original_path << std::endl;
   }
   return {true, {"Patch applied"}};
-}
-
-std::pair<bool, std::string> generate(std::filesystem::path const& game_folder, std::filesystem::path const& script_file,
-                                      std::filesystem::path const& patch_folder) {
-  CHECK_PATCH_FOLDER(patch_folder)
-
 }
 
 int main(int argc, char const *argv[])

@@ -2,6 +2,7 @@
 
 #include <bit>
 #include <algorithm>
+#include <array>
 
 template<std::integral T>
 constexpr T byteswap(T value) noexcept
