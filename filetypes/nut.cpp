@@ -249,17 +249,17 @@ Result TextureData::exportDDS(std::filesystem::path const& extract_dir_path) con
   std::ranges::copy(texture_tmp, dds_data.begin() + sizeof(header));
 
   std::ostringstream fname_steam;
-  auto const last_dir = extract_dir_path.filename();
-  fname_steam << last_dir.string() << "_" << gidx.GIDX << ".dds";
-  auto const filename = fname_steam.str();
-  auto const endpath = extract_dir_path / filename;
+  auto const filename = extract_dir_path.filename();
+  fname_steam << filename.string() << "_" << gidx.GIDX << ".dds";
+  auto const final_filename = fname_steam.str();
+  auto const final_path = extract_dir_path.parent_path() / final_filename;
 
-  std::ofstream stream(endpath, std::ios_base::binary);
+  std::ofstream stream(final_path, std::ios_base::binary);
   if (!stream.is_open()) {
     return {false, "Failed to open the save file."};
   }
   stream.write(dds_data.data(), dds_data.size());
-  return {true, endpath.string()};
+  return {true, final_path.string()};
 }
 
 //Replaces the contents of the texture with the contents of the DDS file
@@ -369,11 +369,17 @@ Result NUT::extract(std::filesystem::path const& savepath) const {
   }
   nut_data["texture_data"] = texture_value;
 
-  std::ofstream stream(savepath / "meta.json", std::ios_base::binary);
+#ifdef NUT_WRITE_META
+  std::ostringstream fname_steam;
+  fname_steam << savepath.filename().string() << "_meta.json";
+  auto const final_filename = fname_steam.str();
+  auto const final_path = savepath.parent_path() / final_filename;
+  std::ofstream stream(final_path, std::ios_base::binary);
   if (!stream.is_open()) {
     return {false, "Failed to write the meta.json file."};
   }
   stream << bjson::value(nut_data);
+#endif
 
   std::stringstream result_str;
   result_str << "Exporting " << texture_data.size() << " textures to DDS format..." << std::endl << "Exported files:" << std::endl;
@@ -394,7 +400,7 @@ Result NUT::inject(const std::filesystem::path& dirpath) {
     auto const last_dir = dirpath.filename();
     fname_steam << last_dir.string() << "_" << texture.gidx.GIDX << ".dds";
     auto const filename = fname_steam.str();
-    auto const endpath = dirpath / filename;
+    auto const endpath = dirpath.parent_path() / filename;
     if (!std::filesystem::exists(endpath)) {
       continue;
     }
@@ -402,6 +408,9 @@ Result NUT::inject(const std::filesystem::path& dirpath) {
       return {false, filename + " failed to load: " + res.second};
     }
     ++texture_count;
+  }
+  if(0 == texture_count) {
+    return {false, "Failed to import textures: nothing to import."};
   }
   std::stringstream result_str;
   result_str << "Imported " << texture_count << " textures.";

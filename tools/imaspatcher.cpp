@@ -87,15 +87,17 @@ imas::file::Result extract(std::filesystem::path const& game_folder, std::filesy
           makeDirs(final_path.parent_path());
           bxr.loadFromData(file.file_data);
           bxr.extract(final_path);
+          std::cout << "Extracted " << subentry << std::endl;
         }
         break;
         case imas::filetype::type::nut:
         {
           imas::file::NUT nut;
           final_path.replace_extension();
-          std::filesystem::create_directories(final_path);
+          std::filesystem::create_directories(final_path.parent_path());
           nut.loadFromData(file.file_data);
           nut.extract(final_path);
+          std::cout << "Extracted " << subentry << std::endl;
         }
         break;
         case imas::filetype::type::scb:
@@ -105,6 +107,7 @@ imas::file::Result extract(std::filesystem::path const& game_folder, std::filesy
           makeDirs(final_path.parent_path());
           scb.loadFromData(file.file_data);
           scb.extract(final_path);
+          std::cout << "Extracted " << subentry << std::endl;
         }
         break;
         default:
@@ -112,7 +115,7 @@ imas::file::Result extract(std::filesystem::path const& game_folder, std::filesy
       }
     }
   }
-  return {true, {}};
+  return {true, {"Data extracted."}};
 }
 
 imas::file::Result patch(std::filesystem::path const& game_folder, std::filesystem::path const& script_file,
@@ -128,6 +131,7 @@ imas::file::Result patch(std::filesystem::path const& game_folder, std::filesyst
     CONT_ON_ERROR(bna.loadFromFile(original_path))
     //STOP_ON_ERROR_RET(bna.loadFromFile(original_path))
     auto const& file_data = bna.getFileData();
+    bool changed = false;
     for(auto const& subentry: entry.files) {
       auto const it = std::find_if(file_data.begin(), file_data.end(), [subentry](auto const& file){
               return subentry == file.getFullPath();
@@ -153,9 +157,8 @@ imas::file::Result patch(std::filesystem::path const& game_folder, std::filesyst
         {
           imas::file::NUT nut;
           final_path.replace_extension();
-          CHECK_FILE_SKIP(final_path)
           nut.loadFromData(file.file_data);
-          STOP_ON_ERROR_RET(nut.inject(final_path));
+          CONT_ON_ERROR(nut.inject(final_path));
           nut.saveToData(file.file_data);
         }
         break;
@@ -172,11 +175,14 @@ imas::file::Result patch(std::filesystem::path const& game_folder, std::filesyst
         default:
         return {false, "Unsupported file type."};
       }
+      changed = true;
     }
-    bna.saveToFile(original_path);
-    std::cout << "Patched file " << original_path << std::endl;
+    if(changed) {
+      bna.saveToFile(original_path);
+      std::cout << "Patched file " << original_path.string() << std::endl;
+    }
   }
-  return {true, {"Patch applied"}};
+  return {true, {"Patch applied."}};
 }
 
 int main(int argc, char const *argv[])
@@ -185,7 +191,7 @@ int main(int argc, char const *argv[])
         std::cout << help << std::endl;
         std::string answer;
         std::getline(std::cin, answer);
-        return 1;
+        return 0;
     }
     //check if directory exists
     if (!std::filesystem::is_directory(argv[2])) {

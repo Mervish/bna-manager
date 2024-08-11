@@ -13,6 +13,8 @@
 #include "./ui_mainwindow.h"
 #include "utility/path.h"
 
+#define NUT_WRITE_META
+
 namespace adaptor = boost::adaptors;
 
 namespace  {
@@ -177,9 +179,6 @@ MainWindow::MainWindow(QWidget *parent)
         if(!m_path_saver.interrogate(m_folder_dialog)) { return; }
         path = m_folder_dialog.selectedFiles().first();
         path += '/' + filename.left(filename.lastIndexOf('.'));
-        if (!std::filesystem::exists(path.toStdString())) {
-            std::filesystem::create_directory(path.toStdString());
-        }
       }
       auto const& file = bna.getFile({m_file_table_model.currentDir().toStdString(), filename.toStdString()});
       manager->loadFromData(file.file_data);
@@ -199,7 +198,7 @@ MainWindow::MainWindow(QWidget *parent)
         path = m_open_file_dialog.selectedFiles().first();
       }else{
         if(!m_path_saver.interrogate(m_folder_dialog)) { return; }
-        path = m_folder_dialog.selectedFiles().first();
+        path = m_folder_dialog.selectedFiles().first() + '/' + filename.left(filename.lastIndexOf('.'));
       }
       auto& file = bna.getFile({m_file_table_model.currentDir().toStdString(), filename.toStdString()});
       manager->loadFromData(file.file_data);
