@@ -29,7 +29,7 @@ void unpackFile(std::filesystem::path const& filepath)
 
 void packDir(std::filesystem::path const& dirpath, std::filesystem::path const& filepath) {
   imas::file::NUT nut;
-  STOP_ON_ERROR(nut.LoadDDS(dirpath));
+  STOP_ON_ERROR(nut.loadDDS(dirpath));
   nut.saveToFile(filepath);
 }
 

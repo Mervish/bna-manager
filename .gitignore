@@ -41,3 +41,6 @@ CMakeCache.txt
 bna.drawio
 .$bna.drawio.bkp
 .$bna.drawio.dtmp
+nvtt/nvtt.h
+nvtt/nvtt_lowlevel.h
+nvtt/nvtt_wrapper.h

@@ -1,5 +1,6 @@
 #include "nut.h"
 
+#include "nvtt/nvtt.h"
 #include "utility/streamtools.h"
 
 #include <fstream>
@@ -30,7 +31,7 @@ void changeEndian4(std::vector<char> &target) {
 namespace imas {
 namespace file {
 
-bool TextureData::Load(std::basic_istream<char> *stream) {
+bool TextureData::load(std::basic_istream<char> *stream) {
   // texture header
   int texture_data_size = utility::readLong(stream);
   unknown0 = utility::readLong(stream); // always 0
@@ -92,7 +93,7 @@ bool TextureData::Load(std::basic_istream<char> *stream) {
   return true;
 }
 
-void TextureData::Write(std::basic_ostream<char> *stream) {
+void TextureData::write(std::basic_ostream<char> *stream) {
   auto const header_size = headerSize();
 
   int32_t const image_data_size = raw_texture.size();
@@ -329,7 +330,7 @@ Result NUT::openFromStream(std::basic_istream<char> *stream) {
 
   texture_data.resize(texture_count);
   for (int i = 0; i < texture_count; i++) {
-    texture_data[i].Load(stream);
+    texture_data[i].load(stream);
   }
 
   return {true, "Successfully loaded NUT file."};
@@ -350,7 +351,7 @@ Result NUT::saveToStream(std::basic_ostream<char> *stream) {
   utility::writeShort(stream, unknown4);
 
   for (int i = 0; i < texture_data.size(); i++) {
-    texture_data[i].Write(stream);
+    texture_data[i].write(stream);
   }
   return {true, "Successfully saved NUT file."};
 }
@@ -425,7 +426,7 @@ Manageable::Fileapi NUT::api() const{
   return api;
 }
 
-Result NUT::LoadDDS(std::filesystem::path const& dirpath)
+Result NUT::loadDDS(std::filesystem::path const& dirpath)
 {
   reset();
   //read metadata

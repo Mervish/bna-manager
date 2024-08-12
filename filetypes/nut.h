@@ -47,8 +47,8 @@ struct TextureData {
   // raw data of image
   std::vector<char> raw_texture;
 
-  bool Load(std::basic_istream<char> *stream);
-  void Write(std::basic_ostream<char> *stream);
+  bool load(std::basic_istream<char> *stream);
+  void write(std::basic_ostream<char> *stream);
 
   int16_t headerSize() const;
   int32_t calculateSize() const;
@@ -64,7 +64,7 @@ struct NUT : public Manageable {
 public:
   Manageable::Fileapi api() const override;
   Result
-  LoadDDS(const std::filesystem::path &dirpath); // builds nut from scratch
+  loadDDS(const std::filesystem::path &dirpath); // builds nut from scratch
   void reset();
 
   virtual Result extract(std::filesystem::path const& savepath) const override;
