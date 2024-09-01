@@ -40,6 +40,7 @@ int main(int argc, char *argv[])
     imas::file::SCB scb;
     if(extension == ".scb") {
         scb.loadFromFile(path);
+        // scb.extractSections(path);
         path.replace_extension(".csv");
         if (rewriteCheck(path)) {
             scb.extract(path);

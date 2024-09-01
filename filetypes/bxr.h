@@ -1,11 +1,14 @@
 #pragma once
 
+//#define BXR_DEBUG_LINKS
+
 #include "filetypes/manageable.h"
 #include <filesystem>
 #include <string>
 #include <vector>
-
-//#define BXR_DEBUG_LINKS
+#ifdef BXR_DEBUG_LINKS
+#include <optional>
+#endif
 
 //*********.bxr
 //1. Label("BXR0")
@@ -30,6 +33,8 @@ public:
     virtual Result inject(const std::filesystem::path& openpath) override;
     void reset();
   protected:
+    virtual Result openFromStream(std::basic_istream<char> *stream) override;
+    virtual Result saveToStream(std::basic_ostream<char> *stream) override;
     virtual size_t size() const override;
   private:
     struct Offsetable {
@@ -41,13 +46,12 @@ public:
 
 #ifdef BXR_DEBUG_LINKS
     template<class T>
-    struct OffsetData : Offsetable
+    struct OffsetData : public Offsetable
     {
         std::vector<T *> children;
     };
-#endif
-
     struct MainScriptEntry;
+#endif
 
     struct OffsetTaggable : Offsetable {
         //raw data
@@ -81,8 +85,8 @@ public:
     };
 
 #ifdef BXR_DEBUG_LINKS
-    std::vector<OffsetData<MainScriptEntry>> tag_main;
-    std::vector<OffsetData<SubScriptEntry>> tag_sub;
+    std::vector<OffsetData<MainScriptEntry>> m_main_tags;
+    std::vector<OffsetData<SubScriptEntry>> m_sub_tags;
 #else
     std::vector<Offsetable> m_main_tags;
     std::vector<Offsetable> m_sub_tags;
@@ -92,8 +96,6 @@ public:
     std::vector<SubScriptEntry> m_sub_items;
     std::string m_property_name = "symbol";
 
-    Result openFromStream(std::basic_istream<char> *stream) override;
-    Result saveToStream(std::basic_ostream<char> *stream) override;
     //size calculation
     uint32_t getUnicodeSize() const;
     uint32_t calculateStringSize() const;

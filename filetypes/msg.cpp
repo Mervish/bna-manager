@@ -1,9 +1,11 @@
 #include "msg.h"
 
+#include <ranges>
 #include <utility/streamtools.h>
 
-#include <fstream>
 #include <numeric>
+
+#include <OpenXLSX.hpp>
 
 namespace  {
 constexpr char padding_literal = 0xCD;
@@ -11,6 +13,13 @@ constexpr auto offset_data_size = 0x10;
 constexpr auto newline_literal = u'\n';
 constexpr auto newline_string_literal = u"\n";
 constexpr auto newline_string = u"\\n";
+
+constexpr auto msg_encoding_flag = 0x1000000;
+
+constexpr auto msg_export_column = 2;
+constexpr auto msg_import_column = msg_export_column + 1;
+
+typedef std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t> MSGWidestringConv;
 
 template<typename CharT>
 std::vector<std::basic_string_view<CharT>> split(std::basic_string_view<CharT> str, char delimiter) {
@@ -75,60 +84,56 @@ size_t MSG::size() const {
 
 Manageable::Fileapi MSG::api() const {
   static auto const api = Fileapi{.base_extension = "msg",
-                          .final_extension = "csv",
+                          .final_extension = "xlsx",
                           .type = ExtractType::file,
-                          .signature = "Comma separated values (*.CSV)",
-                          .extraction_title = "Extract strings...",
-                          .injection_title = "Import string..."};
+                          .signature = "Microsoft Excel Spreadsheet (*.XLSX)",
+                          .extraction_title = "Extract strings as XLSX...",
+                          .injection_title = "Import string from XLSX..."};
   return api;
 }
 
-Result MSG::extract(std::filesystem::path const& filepath) const {
-    std::basic_ofstream<char16_t> stream(filepath);
-    if(!stream.is_open()){
-        return {false, "Failed to open file"};
-    }
-    stream << std::u16string(u"original;translated;translation notes;issues\n");
-    for(auto const& entry : m_entries){
-        stream << convertNewlineCommand(entry.data) << u";;;\n";
-    }
-    return {true, ""};
+Result MSG::extract(std::filesystem::path const &filepath) const {
+  OpenXLSX::XLDocument doc;
+  doc.create(filepath.string());
+
+  auto wks = doc.workbook().worksheet("Sheet1");
+
+  wks.row(1).values() = std::vector<std::string>{"name", "text", "translated", "note", "issues"};
+
+  MSGWidestringConv converter;
+
+  for (auto const &[index, entry] : std::views::enumerate(m_entries)) {
+    wks.cell(index + 2, msg_export_column).value() = converter.to_bytes(entry.data);
+  }
+
+  doc.save();
+  return {true, ""};
 }
 
-Result MSG::inject(std::filesystem::path const& filepath){
-    std::basic_ifstream<char16_t> stream(filepath);
-    if(!stream.is_open()){
-        return {false, "Failed to open file"};
-    }
-    //skip the table header
-    stream.ignore(std::numeric_limits<std::streamsize>::max(), u'\n');
-    std::vector<std::u16string> lines;
-    while (!stream.eof()) {
-        std::u16string line;
-        std::getline(stream, line, u'\n');
-        lines.push_back(line);
-    }
-    //last line may be empty
-    if(lines.back().empty()) {
-      lines.resize(lines.size() - 1);
-    }
-    
-    if(lines.size() != m_entries.size()) {
-        return {false, "Failed to parse line. Wrong number of entries"};
-    }
+Result MSG::inject(std::filesystem::path const &filepath) {
+  OpenXLSX::XLDocument doc;
+  doc.open(filepath.string());
 
-    m_entries.clear();
-    for(auto const& line: lines)  {
-        //we need second token
-        int const token_begin_pos = line.find_first_of(';');
-        int const token_end_pos = line.find_first_of(';', token_begin_pos + 1);
-        if(token_end_pos == line.npos){
-            return {false, "Failed to parse line. Wrong format"};
-        }
-        m_entries.push_back({.data = restoreNewlineCommand(line.substr(token_begin_pos + 1, token_end_pos - token_begin_pos - 1))});
-    }
+  if(!doc.isOpen()){
+    return {false, "failed to open file"};
+  }
 
-    return {true, ""};
+  auto wks = doc.workbook().worksheet("Sheet1");
+
+  MSGWidestringConv converter;
+
+  auto const enum_entries = std::views::enumerate(m_entries);
+  if (std::ranges::all_of(enum_entries, [&wks](auto const& tuple) {
+                          return wks.cell(std::get<0>(tuple) + 2, msg_import_column).getString().empty();
+    })) {
+    return {false, "nothing to import - import column empty"};
+  }
+
+  for (auto const &[index, entry] : enum_entries) {
+    entry.data = converter.from_bytes(wks.cell(index + 2, msg_import_column).getString());
+  }
+
+  return {true, ""};
 }
 
 Result MSG::openFromStream(std::basic_istream<char> *stream) {
@@ -136,7 +141,8 @@ Result MSG::openFromStream(std::basic_istream<char> *stream) {
     label.resize(4);
     stream->read(label.data(), 4);
     stream->seekg(msg_count_offset);
-    auto count = imas::utility::readShort(stream);
+    auto const count = imas::utility::readShort(stream);
+    imas::utility::readToValue(stream, m_flags);
     m_entries.resize(count);
     stream->seekg(msg_header_offset);
     for (auto &entry : m_entries) {
@@ -148,12 +154,20 @@ Result MSG::openFromStream(std::basic_istream<char> *stream) {
     // Moreover, zero point is not defined in the header, so i'm just gonna assume
     // it goes straight after header
     size_t const zero_point = stream->tellg();
+    bool const ansi = m_flags & msg_encoding_flag;
     for (auto &entry : m_entries) {
         stream->seekg(zero_point + entry.map.offset);
         //Let's strip terminating character from the string
-        entry.data.resize((entry.map.size - 1) / 2);
-        for (auto &wide : entry.data) {
-            wide = imas::utility::readShort(stream);
+        if(ansi) {
+          entry.data.resize((entry.map.size - 1));
+          for (auto &wide : entry.data) {
+              stream->read((char*)&wide, 1);
+          }
+        }else{
+          entry.data.resize((entry.map.size - 1) / 2);
+          for (auto &wide : entry.data) {
+              wide = imas::utility::readShort(stream);
+          }
         }
     }
     return {true, ""};
@@ -168,10 +182,10 @@ Result MSG::saveToStream(std::basic_ostream<char> *stream)
     utility::padStream(stream, 0, 16);
     //Write string count
     utility::writeShort(stream, m_entries.size()); //string count
-    utility::padStream(stream, 0, 4);
+    utility::writeFromValue(stream, m_flags);
     int16_t const str_size = stringsSize();
     utility::writeShort(stream, str_size); //string data size
-    utility::writeShort(stream, 0x10); //idk what this does
+    utility::writeShort(stream, 0x10); //idk what this does, seems to be always 0x10
     int16_t const header_size = headerSize();
     utility::writeShort(stream, header_size); //header size
     utility::padStream(stream, 0, 4);

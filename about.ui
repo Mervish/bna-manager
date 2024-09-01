@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>285</width>
-    <height>120</height>
+    <width>369</width>
+    <height>142</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -23,17 +23,17 @@
    <item>
     <widget class="QLabel" name="label">
      <property name="text">
-      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;Version 0.5&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;zzzzzzzzzzzzzzzzz - inspiration and reference scripts.&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;2022-2023 Mervish&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;Version 0.1.3&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;zzzzzzzzzzzzzzzzz - inspiration and reference scripts.&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;wacchoz - imas360viewer code.&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;2022-2024 Mervish&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
      </property>
     </widget>
    </item>
    <item>
     <widget class="QDialogButtonBox" name="buttonBox">
      <property name="orientation">
-      <enum>Qt::Horizontal</enum>
+      <enum>Qt::Orientation::Horizontal</enum>
      </property>
      <property name="standardButtons">
-      <set>QDialogButtonBox::Ok</set>
+      <set>QDialogButtonBox::StandardButton::Ok</set>
      </property>
     </widget>
    </item>

@@ -1,10 +1,11 @@
 #pragma once
 
 #include "filetypes/manageable.h"
-#include <boost/json.hpp>
+
 #include <filesystem>
 #include <vector>
 
+#include <boost/json.hpp>
 
 namespace imas {
 namespace file {
@@ -47,6 +48,8 @@ struct TextureData {
   // raw data of image
   std::vector<char> raw_texture;
 
+  std::filesystem::path const getFilePath(std::filesystem::path const& path) const;
+
   bool load(std::basic_istream<char> *stream);
   void write(std::basic_ostream<char> *stream);
 
@@ -65,16 +68,17 @@ public:
   Manageable::Fileapi api() const override;
   Result
   loadDDS(const std::filesystem::path &dirpath); // builds nut from scratch
+  bool hasFiles(std::filesystem::path const& path) const;
   void reset();
 
   virtual Result extract(std::filesystem::path const& savepath) const override;
   virtual Result inject(std::filesystem::path const& openpath) override;
 
-//protected:
+protected:
   Result openFromStream(std::basic_istream<char> *stream) override;
   Result saveToStream(std::basic_ostream<char> *stream) override;
   size_t size() const override;
-//private:
+private:
   std::vector<TextureData> texture_data;
 
   int unknown0;

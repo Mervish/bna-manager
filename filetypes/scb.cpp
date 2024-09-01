@@ -1,9 +1,7 @@
 #include "scb.h"
 
-#include "utility/datatools.h"
-#include "utility/streamtools.h"
-
-#include <fstream>
+#include <utility/datatools.h>
+#include <utility/streamtools.h>
 
 #include <boost/iostreams/device/array.hpp>
 #include <boost/iostreams/stream.hpp>
@@ -24,17 +22,21 @@ namespace file {
 
 Manageable::Fileapi SCB::api() const {
   static auto const api = Fileapi{.base_extension = "scb",
-                                  .final_extension = "csv",
-                                  .type = ExtractType::file,
-                                  .signature = "Comma separated values (*.CSV)",
-                                  .extraction_title = "Extract strings...",
-                                  .injection_title = "Import string..."};
+                          .final_extension = "xlsx",
+                          .type = ExtractType::file,
+                          .signature = "Microsoft Excel Spreadsheet (*.xlsx)",
+                          .extraction_title = "Extract strings as XLSX...",
+                          .injection_title = "Import string as XLSX..."};
   return api;
 }
 
 MSG &SCB::msg_data() { return m_msg_data; }
 
 Result SCB::extract(std::filesystem::path const &savepath) const {
+#ifdef SCB_RESEARCH
+  extractSections(savepath);
+  return {true, ""};
+#endif
   return m_msg_data.extract(savepath);
 }
 
@@ -45,6 +47,18 @@ Result SCB::inject(std::filesystem::path const &openpath) {
   }
   return res;
 }
+
+#ifdef SCB_RESEARCH
+void SCB::extractSections(const std::filesystem::__cxx11::path& savepath) const
+{
+  for (auto section : m_sections_agg) {
+    auto outpath = savepath;
+    outpath.replace_extension(section->label);
+    std::ofstream stream(outpath, std::ios_base::binary);
+    stream.write(section->data.data(), section->data.size());
+  }
+}
+#endif
 
 Result SCB::openFromStream(std::basic_istream<char> *stream) {
   stream->seekg(offset_unknown_header_data);
@@ -66,9 +80,14 @@ Result SCB::openFromStream(std::basic_istream<char> *stream) {
     stream->read(section->data.data(), section->size);
   }
   m_msg_data.loadFromData(m_sections.MSG.data);
+#ifdef SCB_RESEARCH
+  m_lbn_data.loadFromData(m_sections.LBN.data);
+  m_rsn_data.loadFromData(m_sections.RSN.data);
+  m_vcn_data.loadFromData(m_sections.VCN.data);
+#endif
 
   // Testing
-  updateSectionData();
+  //updateSectionData();
   return {true, ""};
 }
 

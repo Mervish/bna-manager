@@ -7,6 +7,8 @@
 
 #include "msg.h"
 
+//#define SCB_RESEARCH
+
 namespace imas {
 namespace file {
 
@@ -38,6 +40,10 @@ public:
   virtual Result extract(std::filesystem::path const& savepath) const override;
   virtual Result inject(std::filesystem::path const& openpath) override;
 
+#ifdef SCB_RESEARCH
+  void extractSections(std::filesystem::path const& savepath) const;
+#endif
+
 private:
   Result openFromStream(std::basic_istream<char> *stream) override;
   Result saveToStream(std::basic_ostream<char> *stream) override;
@@ -51,6 +57,11 @@ private:
       &m_sections.LBN, &m_sections.RSC, &m_sections.RSN};
   //Custom data parsers
   MSG m_msg_data;
+#ifdef SCB_RESEARCH
+  MSG m_lbn_data;
+  MSG m_vcn_data;
+  MSG m_rsn_data;
+#endif
 };
 
 } // namespace file

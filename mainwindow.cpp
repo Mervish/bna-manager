@@ -13,11 +13,9 @@
 #include "./ui_mainwindow.h"
 #include "utility/path.h"
 
-#define NUT_WRITE_META
-
 namespace adaptor = boost::adaptors;
 
-namespace  {
+namespace {
 
 auto constexpr file_list_role = Qt::UserRole + 1;
 auto constexpr folder_path_role = Qt::UserRole + 2;

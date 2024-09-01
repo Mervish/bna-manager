@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <iostream>
 #include <string>
 #include <ranges>
 #include <filesystem>
@@ -45,6 +46,16 @@ void iterateFiles(std::filesystem::path const& gamepath, std::string const& type
                  })) {
     callback(file.path());
   }
+}
+
+bool rewriteCheck(std::filesystem::path const& filepath) {
+    if(std::filesystem::exists(filepath)) {
+        std::cout << "File " << filepath << " already exists. Overwrite? [y/N] ";
+        char c;
+        std::cin >> c;
+        return c == 'y';
+    }
+    return true;
 }
 
 std::vector<std::string> collectFilepaths(std::filesystem::path const& gamepath, std::string const& type) {

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "utility/datatools.h"
-#include "utility/result.h"
+#include <utility/datatools.h>
+#include <utility/result.h>
 
 #include <filesystem>
 #include <fstream>

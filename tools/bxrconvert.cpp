@@ -2,17 +2,9 @@
 #include <filesystem>
 #include <iostream>
 
-#include "filetypes/bxr.h"
+#include <utility/path.h>
 
-bool rewriteCheck(std::filesystem::path const& filepath) {
-    if(std::filesystem::exists(filepath)) {
-        std::cout << "File " << filepath << " already exists. Overwrite? [y/N] ";
-        char c;
-        std::cin >> c;
-        return c == 'y';
-    }
-    return true;
-}
+#include "filetypes/bxr.h"
 
 int main(int argc, char *argv[])
 {
@@ -37,15 +29,18 @@ int main(int argc, char *argv[])
     imas::file::BXR bxr;
     if(extension == ".bxr") {
         bxr.loadFromFile(path);
-        path.replace_extension(".xml");
-        if (rewriteCheck(path)) {
-            bxr.extract(path);
-            std::cout << "Saved to " << path << std::endl;
-        }
+        auto test_path = path;
+        test_path.replace_filename(test_path.filename().stem().string() + "_test" + path.extension().string());
+        bxr.saveToFile(test_path);
+        // path.replace_extension(".xml");
+        // if (imas::path::rewriteCheck(path)) {
+        //     bxr.extract(path);
+        //     std::cout << "Saved to " << path << std::endl;
+        // }
     } else {
         bxr.inject(path);
         path.replace_extension(".bxr");
-        if (rewriteCheck(path)) {
+        if (imas::path::rewriteCheck(path)) {
             bxr.saveToFile(path);
             std::cout << "Saved to " << path << std::endl;
         }

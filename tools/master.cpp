@@ -1,10 +1,5 @@
 
-#include "filetypes/nut.h"
 #include "utility/path.h"
-#include <QCoreApplication>
-#include <QFile>
-#include <QJsonArray>
-#include <QJsonObject>
 
 #include <filesystem>
 #include <fstream>
@@ -13,14 +8,19 @@
 
 #include <filetypes/bna.h>
 #include <filetypes/msg.h>
+#include <filetypes/nut.h>
 #include <filetypes/scb.h>
 #include <filetypes/scenario.h>
 
+#include <boost/algorithm/string.hpp>
+
 // #define MAP_STRINGS
 
-constexpr auto help = "Idolm@ster BNA charting tool.\n"
-"Usage: BNAMaster map [extension] <gamepath> <scenario_path>\n"
-"maps bna's internal files according to [extension] and writes them into the <scenario_patch>";
+constexpr auto help =
+    "Idolm@ster BNA charting tool.\n"
+    "Usage: BNAMaster map [extension] <gamepath> <scenario_path>\n"
+    "maps bna's internal files according to [extension] and writes them into "
+    "the <scenario_patch>";
 
 template <typename _Pred>
 void iterateBNA(std::filesystem::path const &gamepath, _Pred const &callback) {
@@ -57,7 +57,8 @@ void iterateBNA(std::filesystem::path const &gamepath, _Pred const &callback) {
 //       filesystem_output << "-(empty)" << std::endl;
 //     }
 //     for (auto const &subfile : filedata) {
-//       filesystem_output << '-' << subfile.dir_name << '/' << subfile.file_name
+//       filesystem_output << '-' << subfile.dir_name << '/' <<
+//       subfile.file_name
 //                         << std::endl;
 //     }
 //     auto const &script_files = bna.getFiles("scb");
@@ -74,15 +75,22 @@ void iterateBNA(std::filesystem::path const &gamepath, _Pred const &callback) {
 
 void mapBNA(std::filesystem::path const &gamepath, std::string const &filetype,
             std::filesystem::path const &scenario_path) {
+  std::vector<std::string> filetypes;
+  boost::split(filetypes, filetype, boost::is_any_of("|"));
+
   imas::file::OperationScenario scenario;
-  auto const mapBNAfile = [&gamepath, &filetype,
-                           &scenario](std::filesystem::path const &filepath) {
+  auto const mapBNAfile = [&gamepath, &filetype, &scenario,
+                           &filetypes](std::filesystem::path const &filepath) {
     imas::file::BNA bna;
     if (auto const res = bna.loadFromFile(filepath); !res.first) {
       std::cout << "Failed to open " << filepath << " - " << res.second
                 << std::endl;
     }
-    auto const files = bna.getFiles(filetype);
+    std::vector<std::reference_wrapper<imas::file::BNAFileEntry>> files;
+    for (auto const &filetype : filetypes) {
+      auto const f_files = bna.getFiles(filetype);
+      files.insert(files.end(), f_files.cbegin(), f_files.cend());
+    }
     if (files.empty()) {
       return;
     }
@@ -157,42 +165,45 @@ int main(int argc, char *argv[]) {
 
   if (command == "map") {
     auto filetype = std::string(argv[2]);
-    std::transform(filetype.begin(), filetype.end(), filetype.begin(), ::tolower);
+    std::transform(filetype.begin(), filetype.end(), filetype.begin(),
+                   ::tolower);
     auto const gamepath = std::string(argv[3]);
     auto const scenario_path = std::string(argv[4]);
     mapBNA(gamepath, filetype, scenario_path);
   }
 
-  if (command == "compare") {
-    auto const nut_path = std::string(argv[2]);
-    auto const bna_path = std::string(argv[3]);
-    auto const nut_subpath = std::string(argv[4]);
-    imas::file::BNA bna;
-    bna.loadFromFile(bna_path);
-    auto const& file_data = bna.getFileData();
-    auto const it = std::find_if(file_data.begin(), file_data.end(), [nut_subpath](auto const& file){
-              return nut_subpath == file.getFullPath();
-            });
-    if (it == file_data.end()) {
-      return 1;
-    }
-    auto const signature = it->getSignature();
-    auto file = bna.getFile(signature);
-    imas::file::NUT sub_nut;
-    sub_nut.loadFromData(file.file_data);
-    imas::file::NUT nut;
-    nut.loadFromFile(nut_path);
-    auto const& texture1 = nut.texture_data.front().raw_texture;
-    auto const& texture2 = sub_nut.texture_data.front().raw_texture;
-    std::cout << (std::equal(texture1.begin(), texture1.end(), texture2.begin()) ? "SAME" : "DIFFERENT") << std::endl;
-    auto const path = nut_path.substr(0, nut_path.find_last_of('.')) + "\\" + "original";
-    auto const sub_path = nut_path.substr(0, nut_path.find_last_of('.')) + "\\" + "sub";
-    std::filesystem::create_directories(path);
-    std::filesystem::create_directories(sub_path);
-    nut.extract(path);
-    sub_nut.extract(sub_path);
-    return 0;
-  }
+  // if (command == "compare") {
+  //   auto const nut_path = std::string(argv[2]);
+  //   auto const bna_path = std::string(argv[3]);
+  //   auto const nut_subpath = std::string(argv[4]);
+  //   imas::file::BNA bna;
+  //   bna.loadFromFile(bna_path);
+  //   auto const& file_data = bna.getFileData();
+  //   auto const it = std::find_if(file_data.begin(), file_data.end(),
+  //   [nut_subpath](auto const& file){
+  //             return nut_subpath == file.getFullPath();
+  //           });
+  //   if (it == file_data.end()) {
+  //     return 1;
+  //   }
+  //   auto const signature = it->getSignature();
+  //   auto file = bna.getFile(signature);
+  //   imas::file::NUT sub_nut;
+  //   sub_nut.loadFromData(file.file_data);
+  //   imas::file::NUT nut;
+  //   nut.loadFromFile(nut_path);
+  //   auto const& texture1 = nut.texture_data.front().raw_texture;
+  //   auto const& texture2 = sub_nut.texture_data.front().raw_texture;
+  //   std::cout << (std::equal(texture1.begin(), texture1.end(),
+  //   texture2.begin()) ? "SAME" : "DIFFERENT") << std::endl; auto const path =
+  //   nut_path.substr(0, nut_path.find_last_of('.')) + "\\" + "original"; auto
+  //   const sub_path = nut_path.substr(0, nut_path.find_last_of('.')) + "\\" +
+  //   "sub"; std::filesystem::create_directories(path);
+  //   std::filesystem::create_directories(sub_path);
+  //   nut.extract(path);
+  //   sub_nut.extract(sub_path);
+  //   return 0;
+  // }
 
   // switch (argc) {
   // case 2: {

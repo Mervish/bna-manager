@@ -1,14 +1,12 @@
 #include "nut.h"
 
-#include "nvtt/nvtt.h"
-#include "utility/streamtools.h"
+#include <utility/datatools.h>
+#include <utility/streamtools.h>
 
 #include <fstream>
 
 #include <boost/range/adaptor/transformed.hpp>
-#include <boost/iostreams/device/array.hpp>
 #include <boost/iostreams/stream.hpp>
-#include <utility/datatools.h>
 
 namespace bjson = boost::json;
 
@@ -26,10 +24,18 @@ void changeEndian4(std::vector<char> &target) {
   }
 }
 
+
+
 }
 
 namespace imas {
 namespace file {
+
+const std::filesystem::__cxx11::path TextureData::getFilePath(const std::filesystem::__cxx11::path& path) const {
+  std::ostringstream fname_steam;
+  fname_steam << path.filename().string() << "_" << gidx.GIDX << ".dds";
+  return path.parent_path() / fname_steam.str();
+}
 
 bool TextureData::load(std::basic_istream<char> *stream) {
   // texture header
@@ -249,11 +255,7 @@ Result TextureData::exportDDS(std::filesystem::path const& extract_dir_path) con
 
   std::ranges::copy(texture_tmp, dds_data.begin() + sizeof(header));
 
-  std::ostringstream fname_steam;
-  auto const filename = extract_dir_path.filename();
-  fname_steam << filename.string() << "_" << gidx.GIDX << ".dds";
-  auto const final_filename = fname_steam.str();
-  auto const final_path = extract_dir_path.parent_path() / final_filename;
+  auto const final_path = getFilePath(extract_dir_path);
 
   std::ofstream stream(final_path, std::ios_base::binary);
   if (!stream.is_open()) {
@@ -333,12 +335,12 @@ Result NUT::openFromStream(std::basic_istream<char> *stream) {
     texture_data[i].load(stream);
   }
 
-  return {true, "Successfully loaded NUT file."};
+  return {true, "successfully loaded NUT file"};
 }
 
 Result NUT::saveToStream(std::basic_ostream<char> *stream) {
   if(texture_data.size() == 0) {
-    return {false, "No texture data to save."};
+    return {false, "no texture data to save"};
   }
 
   stream->write("NTXR", 4);
@@ -353,7 +355,7 @@ Result NUT::saveToStream(std::basic_ostream<char> *stream) {
   for (int i = 0; i < texture_data.size(); i++) {
     texture_data[i].write(stream);
   }
-  return {true, "Successfully saved NUT file."};
+  return {true, "successfully saved NUT file"};
 }
 
 Result NUT::extract(std::filesystem::path const& savepath) const {
@@ -370,17 +372,15 @@ Result NUT::extract(std::filesystem::path const& savepath) const {
   }
   nut_data["texture_data"] = texture_value;
 
-#ifdef NUT_WRITE_META
   std::ostringstream fname_steam;
   fname_steam << savepath.filename().string() << "_meta.json";
   auto const final_filename = fname_steam.str();
   auto const final_path = savepath.parent_path() / final_filename;
   std::ofstream stream(final_path, std::ios_base::binary);
   if (!stream.is_open()) {
-    return {false, "Failed to write the meta.json file."};
+    return {false, "failed to write the meta.json file"};
   }
   stream << bjson::value(nut_data);
-#endif
 
   std::stringstream result_str;
   result_str << "Exporting " << texture_data.size() << " textures to DDS format..." << std::endl << "Exported files:" << std::endl;
@@ -397,24 +397,20 @@ Result NUT::extract(std::filesystem::path const& savepath) const {
 Result NUT::inject(const std::filesystem::path& dirpath) {
   size_t texture_count = 0;
   for (auto& texture : texture_data) {
-    std::ostringstream fname_steam;
-    auto const last_dir = dirpath.filename();
-    fname_steam << last_dir.string() << "_" << texture.gidx.GIDX << ".dds";
-    auto const filename = fname_steam.str();
-    auto const endpath = dirpath.parent_path() / filename;
+    auto const endpath = texture.getFilePath(dirpath);
     if (!std::filesystem::exists(endpath)) {
       continue;
     }
     if(auto const res = texture.importDDS(endpath); !res.first){
-      return {false, filename + " failed to load: " + res.second};
+      return {false, endpath.string() + " failed to load: " + res.second};
     }
     ++texture_count;
   }
   if(0 == texture_count) {
-    return {false, "Failed to import textures: nothing to import."};
+    return {false, "failed to import textures: nothing to import"};
   }
   std::stringstream result_str;
-  result_str << "Imported " << texture_count << " textures.";
+  result_str << "Imported " << texture_count << " textures";
   return {true, result_str.str()};
 }
 
@@ -430,9 +426,9 @@ Result NUT::loadDDS(std::filesystem::path const& dirpath)
 {
   reset();
   //read metadata
-  std::ifstream stream(dirpath / "meta.json", std::ios_base::binary);
+  std::ifstream stream(dirpath.string() + "_meta.json", std::ios_base::binary);
   if (!stream.is_open()) {
-    return {false, "Failed to read the meta.json file."};
+    return {false, "failed to load the meta.json file"};
   }
   bjson::value nut_value;
   stream >> nut_value;
@@ -446,7 +442,7 @@ Result NUT::loadDDS(std::filesystem::path const& dirpath)
     unknown4 = nut_data["unknown4"].as_int64();
     texture_count = nut_data["texture_count"].as_int64();
   } catch (std::invalid_argument const& e) {
-    return {false, "Failed to read the meta.json file. Wrong value format: " + std::string(e.what())};
+    return {false, "failed to read the meta.json file. Wrong value format: " + std::string(e.what())};
   }
   //collect DDS
   std::vector<std::filesystem::path> dds_paths;
@@ -456,10 +452,10 @@ Result NUT::loadDDS(std::filesystem::path const& dirpath)
     }
   }
   if(dds_paths.size() == 0) {
-    return {false, "No DDS files found."};
+    return {false, "no DDS files found"};
   }
   if(dds_paths.size() != texture_count) {
-    return {false, "The number of DDS files does not match the number in the meta.json file. Expected " + std::to_string(texture_count) + " but found " + std::to_string(dds_paths.size())};
+    return {false, "the number of DDS files does not match the number in the meta.json file. Expected " + std::to_string(texture_count) + " but found " + std::to_string(dds_paths.size())};
   }
   std::sort(dds_paths.begin(), dds_paths.end());
   texture_data.reserve(dds_paths.size());
@@ -472,7 +468,16 @@ Result NUT::loadDDS(std::filesystem::path const& dirpath)
       return {false, path.string() + " failed to load: " + res.second};
     }
   }
-  return {true, "Successfully loaded DDS files."};
+  return {true, "successfully loaded DDS files"};
+}
+
+bool NUT::hasFiles(const std::filesystem::__cxx11::path& path) const {
+  for(auto const& texture: texture_data) {
+    if(std::filesystem::exists(texture.getFilePath(path))) {
+      return true;
+    }
+  }
+  return false;
 }
 
 void NUT::reset() {

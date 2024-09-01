@@ -1,6 +1,5 @@
 #include "bna.h"
 
-#include "utility/stdhacks.h"
 #include "utility/streamtools.h"
 
 #include <boost/range/adaptors.hpp>
@@ -9,13 +8,6 @@
 
 
 namespace  {
-#warning Dublicate code. "streamtools.h" already contains similar function. There is probably
-template<class T>
-inline void readToValue(std::ifstream &stream, T &value){
-  stream.read((char *)&value, sizeof (value));
-  value = byteswap(value);
-}
-
 auto constexpr terminator = '\0';
 auto constexpr padding_char = 0;
 
@@ -106,22 +98,22 @@ Result BNA::loadFromFile(std::filesystem::path const& filepath)
   char idstring[idsize];
   m_read_stream.read(idstring, idsize);
   if (memcmp("BNA0", idstring, idsize)) {
-      return {false, "This file is not a valid BNA file!"};
+      return {false, "file is not a valid BNA file!"};
   }
 
   //Get filecount
   int32_t files;
-  readToValue(m_read_stream, files);
+  utility::readToValue(&m_read_stream, files);
 
   std::set<int32_t> folder_offsets;
 
   //Parse header
   for(decltype(files) n_file = 0; n_file < files; ++n_file){
     BNAFileEntry entry;
-    readToValue(m_read_stream, entry.offsets.dir_name);
-    readToValue(m_read_stream, entry.offsets.file_name);
-    readToValue(m_read_stream, entry.offsets.file_data.offset);
-    readToValue(m_read_stream, entry.offsets.file_data.size);
+    utility::readToValue(&m_read_stream, entry.offsets.dir_name);
+    utility::readToValue(&m_read_stream, entry.offsets.file_name);
+    utility::readToValue(&m_read_stream, entry.offsets.file_data.offset);
+    utility::readToValue(&m_read_stream, entry.offsets.file_data.size);
     m_file_data.push_back(entry);
     folder_offsets.insert(entry.offsets.dir_name);
   }
@@ -142,7 +134,7 @@ Result BNA::loadFromFile(std::filesystem::path const& filepath)
   }
 
   if(!m_file_data.empty()){
-    return {true, "Opened the file"};
+    return {true, "opened the file"};
   }
   return {false, "BNA file is empty."};
 }

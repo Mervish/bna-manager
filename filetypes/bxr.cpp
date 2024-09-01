@@ -85,7 +85,7 @@ Result BXR::openFromStream(std::basic_istream<char> *stream)
     stream->read(label.data(), 4);
 
     if(bxr_label != label) {
-        return {false, "Wrong filetype? File label mismatch."};
+        return {false, "wrong filetype, file label mismatch"};
     }
     reset();
 
@@ -190,9 +190,9 @@ Result BXR::openFromStream(std::basic_istream<char> *stream)
         {
             entry.unicode.assign( (char16_t*) & symbol[ entry.offset_unicode ]);
             //Curiously, symbol data has mixed 8 and 16 bit-wide strings
-            //So we need to convert the endianess on the fly
+            //So we need to convert the endianess for the 16 bit strings
             for(auto& character: entry.unicode) {
-                character = _byteswap_ushort(character);
+                character = std::byteswap(character);
             }
         }
     }
@@ -212,14 +212,14 @@ Result BXR::openFromStream(std::basic_istream<char> *stream)
         m_property_name = m_sub_tags.front().symbol;
     }
 
-    return {true, "File succesfully loaded."};
+    return {true, "succesfully loaded"};
 }
 
 Result BXR::extract(std::filesystem::path const &savepath) const
 {
     QFile file(savepath);
     if(!file.open(QIODevice::WriteOnly)){
-        return {false, "Unable to open the file"};
+        return {false, "unable to open the file"};
     }
     QXmlStreamWriter xml_writer(&file);
     xml_writer.setAutoFormatting(true);
@@ -302,7 +302,7 @@ Result BXR::inject(std::filesystem::path const& openpath)
     reset();
     QFile file(openpath);
     if (!file.open(QIODevice::ReadOnly)) {
-        return {false, "Unable to open the file."};
+        return {false, "unable to open the file"};
     }
     QXmlStreamReader xml_reader(&file);
 
@@ -350,29 +350,35 @@ Result BXR::inject(std::filesystem::path const& openpath)
     auto const sub_items = candidates | adaptor::filtered(filterCandidateType<CandidateType::sub>);
     //Collect tags
     int32_t offset_counter = 0; //We're gonna enumerate offsets in [main tag, sub tag, entries] order.
-    auto const addTag = [&offset_counter](Candidate const& source, std::vector<Offsetable>& taglist){
-      if(auto const res = std::ranges::find_if(taglist, [&source](Offsetable const& entry){
+    auto const addTag = [&offset_counter](Candidate const& source, auto& taglist){
+      if(auto const res = std::ranges::find_if(taglist, [&source](auto const& entry){
         return source.tag == entry.symbol;
           }); res == taglist.end()) {
         auto const offset = offset_counter++;
-        taglist.push_back(Offsetable{.offset = offset, .symbol = source.tag});
+        typename std::remove_reference<decltype(taglist)>::type::value_type entry;
+        entry.offset = offset;
+        entry.symbol = source.tag;
+        taglist.push_back(entry);
       }
     };
     for(auto const& item: main_items) {
        addTag(item, m_main_tags);
     }
-    m_sub_tags.emplace_back(offset_counter++, m_property_name); //Add property name as our first subtag
+    decltype(m_sub_tags)::value_type subentry;
+    subentry.offset = offset_counter++;
+    subentry.symbol = m_property_name;
+    m_sub_tags.emplace_back(subentry); //Add property name as our first subtag
     for(auto const& item: sub_items) {
        addTag(item, m_sub_tags);
     }
-    //The crazy memory manipulation requires to prepare vectors
+    //The memory manipulation required to prepare vectors
     //so they wouldn't invalidate pointers when reallocating themselves
-    auto const main_items_size = std::distance(main_items.begin(), main_items.end());
+    auto const main_items_size = std::ranges::distance(main_items);
     auto const sub_items_size = candidates.size() - main_items_size;
     m_main_items.reserve(main_items_size);
     m_sub_items.reserve(sub_items_size);
     //Collect items
-    auto const match_tag = [](std::vector<Offsetable> const& taglist, std::string const& tag, OffsetTaggable* entry){
+    auto const match_tag = [](auto const& taglist, std::string const& tag, OffsetTaggable* entry){
       auto const res = std::ranges::find_if(taglist, [&tag](Offsetable const& entry){
         return tag == entry.symbol;
       });
@@ -437,7 +443,7 @@ Result BXR::inject(std::filesystem::path const& openpath)
         }
     }
     //Enumerate children
-    for (auto& item: m_main_items | adaptor::filtered([](MainScriptEntry const& entry){
+    for (auto& item: m_main_items | adaptor::filtered([](MainScriptEntry const& entry) {
                         return !entry.subscript_children.empty();
                       })) {
          int index = item.index_sub_item;
@@ -446,7 +452,7 @@ Result BXR::inject(std::filesystem::path const& openpath)
          });
          item.subscript_children.back()->next = -1;
     }
-    return {true,"File succesfully imported from XML."};
+    return {true,"succesfully imported from XML"};
 }
 
 uint32_t BXR::getUnicodeSize() const {
