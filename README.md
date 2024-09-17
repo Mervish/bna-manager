@@ -11,11 +11,11 @@ Extracts data or injects it back to the game. Works with script files made by BN
 [formatname]tool. Dedicated command-line tools for extraction of various formats. Low priority, since batch processing by imaspatcher is more effecient.
 
 # Build requirements
-C++23, in particular std::spanstream and std::byteswap - two critical components of the file reading. I use MinGW13.1.0 to build the project.
-Qt6, for the BNAGui.
-Boost, tested on 1.81.
-OpenXLSX, requires copying it's source codes to the project's source directory.
-pugixlm, included with OpenXLSX.
+- C++23, in particular std::spanstream and std::byteswap - two critical components of the file reading. I use MinGW13.1.0 to build the project.
+- Qt6, for the BNAGui.
+- Boost, tested on 1.81.
+- OpenXLSX, requires copying it's source codes to the project's source directory.
+- pugixlm, included with OpenXLSX.
 
 # Supported formats
 - SCB: A container for the spoken text data. Unicode strings from the .scb's internal MSG section can be extracted(/injected) as CSV.
