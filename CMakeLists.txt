@@ -75,6 +75,7 @@ qt_add_executable(BNAGUI
     filetablemodel.cpp
     filetableview.h
     filetableview.cpp
+    utility/stringtools.h
 )
 
 target_include_directories(BNAGUI PRIVATE ./../libsquish)
@@ -104,8 +105,6 @@ add_executable(bxrtool
     tools/bxrconvert.cpp
     ${BXR_files}
 )
-
-target_link_libraries(bxrtool PRIVATE Qt${QT_VERSION_MAJOR}::Core)
 
 add_executable(bnacmdtool
     tools/bnaunpack.cpp
@@ -147,7 +146,7 @@ if(Boost_FOUND)
     target_link_libraries(BNAGUI PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
         ${Boost_LIBRARIES}
         OpenXLSX::OpenXLSX)
-    target_link_libraries(imaspatcher PRIVATE Qt${QT_VERSION_MAJOR}::Core ${Boost_LIBRARIES} OpenXLSX::OpenXLSX)
+    target_link_libraries(imaspatcher PRIVATE ${Boost_LIBRARIES} OpenXLSX::OpenXLSX)
     target_link_libraries(bnamaster ${Boost_LIBRARIES} OpenXLSX::OpenXLSX)
     target_link_libraries(nuttool ${Boost_LIBRARIES})
     target_link_libraries(scbtool ${Boost_LIBRARIES} OpenXLSX::OpenXLSX)

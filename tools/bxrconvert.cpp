@@ -27,16 +27,17 @@ int main(int argc, char *argv[])
     }
 
     imas::file::BXR bxr;
+    imas::file::BXR bxr_comp;
     if(extension == ".bxr") {
         bxr.loadFromFile(path);
         auto test_path = path;
-        test_path.replace_filename(test_path.filename().stem().string() + "_test" + path.extension().string());
-        bxr.saveToFile(test_path);
-        // path.replace_extension(".xml");
-        // if (imas::path::rewriteCheck(path)) {
-        //     bxr.extract(path);
-        //     std::cout << "Saved to " << path << std::endl;
-        // }
+        //test_path.replace_filename(test_path.filename().stem().string() + "_test" + path.extension().string());
+        //bxr.saveToFile(test_path);
+        path.replace_extension(".xml");
+        if (imas::path::rewriteCheck(path)) {
+            bxr.extract(path);
+            std::cout << "Saved to " << path << std::endl;
+        }
     } else {
         bxr.inject(path);
         path.replace_extension(".bxr");

@@ -372,18 +372,18 @@ Result NUT::extract(std::filesystem::path const& savepath) const {
   }
   nut_data["texture_data"] = texture_value;
 
-  std::ostringstream fname_steam;
-  fname_steam << savepath.filename().string() << "_meta.json";
-  auto const final_filename = fname_steam.str();
-  auto const final_path = savepath.parent_path() / final_filename;
-  std::ofstream stream(final_path, std::ios_base::binary);
-  if (!stream.is_open()) {
-    return {false, "failed to write the meta.json file"};
-  }
-  stream << bjson::value(nut_data);
+  //std::ostringstream fname_steam;
+  //fname_steam << savepath.filename().string() << "_meta.json";
+  //auto const final_filename = fname_steam.str();
+  //auto const final_path = savepath.parent_path() / final_filename;
+  //std::ofstream stream(final_path, std::ios_base::binary);
+  //if (!stream.is_open()) {
+  //  return {false, "failed to write the meta.json file"};
+  //}
+  //stream << bjson::value(nut_data);
 
   std::stringstream result_str;
-  result_str << "Exporting " << texture_data.size() << " textures to DDS format..." << std::endl << "Exported files:" << std::endl;
+  result_str << "Exporting " << texture_data.size() << " textures to DDS format..." << std::endl << "Exported files:\n";
   for (auto const& texture : texture_data) {
     if(auto const res = texture.exportDDS(savepath); res.first){
       result_str << res.second;

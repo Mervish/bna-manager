@@ -1,4 +1,5 @@
 #include "msg.h"
+#include "utility/stringtools.h"
 
 #include <ranges>
 #include <utility/streamtools.h>
@@ -19,12 +20,8 @@ constexpr auto msg_encoding_flag = 0x1000000;
 constexpr auto msg_export_column = 2;
 constexpr auto msg_import_column = msg_export_column + 1;
 
-typedef std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t>
-    MSGWidestringConv;
-
-template <typename CharT>
-std::vector<std::basic_string_view<CharT>>
-split(std::basic_string_view<CharT> str, char delimiter) {
+template<typename CharT>
+std::vector<std::basic_string_view<CharT>> split(std::basic_string_view<CharT> str, char delimiter) {
   std::vector<std::basic_string_view<CharT>> result;
   size_t start = 0;
   size_t end = str.find(delimiter);
@@ -105,7 +102,7 @@ Result MSG::extract(std::filesystem::path const &filepath) const {
   wks.row(1).values() =
       std::vector<std::string>{"name", "text", "translated", "note", "issues"};
 
-  MSGWidestringConv converter;
+  WidestringConv converter;
 
   for (auto const &[index, entry] : std::views::enumerate(m_entries)) {
     wks.cell(index + 2, msg_export_column).value() =
@@ -126,7 +123,7 @@ Result MSG::inject(std::filesystem::path const &filepath) {
 
   auto wks = doc.workbook().worksheet("Sheet1");
 
-  MSGWidestringConv converter;
+  WidestringConv converter;
 
   std::vector<std::u16string> new_strings;
   for (auto const &cell :

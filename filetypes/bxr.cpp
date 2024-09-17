@@ -1,16 +1,13 @@
 #include "bxr.h"
 
 #include "utility/streamtools.h"
+#include "utility/stringtools.h"
 
-#include <QDebug>
-#include <QFile>
-#include <QXmlStreamWriter>
+#include <iostream>
+#include <numeric>
+#include <ranges>
 
 #include <boost/range/adaptors.hpp>
-#include <boost/iostreams/device/array.hpp>
-#include <boost/iostreams/stream.hpp>
-#include <boost/archive/xml_iarchive.hpp>
-#include <boost/archive/xml_oarchive.hpp>
 
 namespace adaptor = boost::adaptors;
 
@@ -51,18 +48,40 @@ enum class CandidateType
     sub
 };
 
+struct Candidate;
+
+typedef std::shared_ptr<Candidate> CandidatePtr;
+
 struct Candidate {
     std::string tag;
     std::string value;
     std::u16string unicode;
     int power;
-    CandidateType type;
+    CandidateType type = CandidateType::main;
+    std::vector<CandidatePtr> main_children;
+    std::vector<CandidatePtr> sub_children;
 };
 
 template <CandidateType F>
 bool filterCandidateType(Candidate const& entry) {
     return F == entry.type;
 }
+
+//makes hierarchy based on range
+template <class R>
+std::vector<imas::file::BXR::MainScriptEntry*> makeChildrenHierarchy(R const& range, int cur_tick) {
+  std::vector<imas::file::BXR::MainScriptEntry*> res;
+  for(auto iter = range.begin();iter != range.end();) {
+    res.push_back(*iter);
+    auto const ticks = (*iter)->next_ticks - cur_tick;
+    if(ticks > 1) {
+      (*iter)->children = makeChildrenHierarchy(std::ranges::subrange(iter + 1, iter + ticks), cur_tick + 1);
+    }
+    iter += ticks;
+    cur_tick += ticks;
+  }
+  return res;
+};
 }
 
 namespace imas{
@@ -158,7 +177,7 @@ Result BXR::openFromStream(std::basic_istream<char> *stream)
 
     // BLOCK3    
     //Setting substrings
-    for(auto iter = m_main_items.begin(); iter != m_main_items.end();++iter) {
+    for(auto iter = m_main_items.begin();iter != m_main_items.end();++iter) {
         if( -1 != iter->index_sub_item) {
           auto sub_iter = m_sub_items.begin() + iter->index_sub_item;
             while(sub_iter != m_sub_items.end()) {
@@ -174,13 +193,31 @@ Result BXR::openFromStream(std::basic_istream<char> *stream)
         }
     }
 
+    m_root = makeChildrenHierarchy(m_main_items | std::views::transform([](MainScriptEntry& entry){
+                              return &entry;
+                            }), 0);
+
+    // for(auto iter = m_main_items.begin();iter != m_main_items.end();++iter) {
+    //   m_root.push_back(&*iter);
+    //   auto const ticks = iter->next_ticks;
+    //   auto const children_range = std::ranges::subrange(iter + 1, iter + ticks) | std::views::transform([](MainScriptEntry& entry){
+    //     return &entry;
+    //   });
+    //   iter->children.assign(children_range.begin(), children_range.end());
+    //   iter += ticks;
+    // }
+    //next ticks is amount of children
+    //you can get it from xml by literally counting children
+    //I only need to "unwrap" all of the children into the list
+    //probably should make methods for setting next_ticks recursively or unwrapping children
+
     for(auto& entry : m_main_items)
     {
-        auto& parent = m_main_tags[ entry.data_tag ];
+        auto& tag_data = m_main_tags[ entry.data_tag ];
 #ifdef BXR_DEBUG_LINKS
-        parent.children.push_back(&entry);
+        tag_data.entries.push_back(&entry);
 #endif
-        entry.tag_view = parent.symbol;
+        entry.tag_view = tag_data.symbol;
         if( -1 != entry.offset ) {
             entry.symbol.assign(&symbol.data()[ entry.offset ]);
         }
@@ -200,259 +237,519 @@ Result BXR::openFromStream(std::basic_istream<char> *stream)
     // BLOCK4
     for(auto& entry: m_sub_items)
     {
-        auto& parent = m_sub_tags[ entry.data_tag ];
+        auto& tag_data = m_sub_tags[ entry.data_tag ];
 #ifdef BXR_DEBUG_LINKS
-        parent.children.push_back(&entry);
+        tag_data.entries.push_back(&entry);
 #endif
-        entry.tag_view = parent.symbol;
+        entry.tag_view = tag_data.symbol;
         entry.symbol = std::string(&symbol.data()[ entry.offset ]);
     }
 
-    if(!m_sub_tags.empty()) {
-        m_property_name = m_sub_tags.front().symbol;
+    if(auto const prop_i = std::ranges::find(m_sub_tags, 0, [](auto const& entry){
+        return entry.entries.size();
+    }); prop_i != m_sub_tags.end()) {
+      m_property_name = prop_i->symbol;
+    }else{
+      return {false, "failed to find property name"};
     }
 
     return {true, "succesfully loaded"};
 }
 
-Result BXR::extract(std::filesystem::path const &savepath) const
-{
-    QFile file(savepath);
-    if(!file.open(QIODevice::WriteOnly)){
-        return {false, "unable to open the file"};
-    }
-    QXmlStreamWriter xml_writer(&file);
-    xml_writer.setAutoFormatting(true);
-    std::vector<std::pair<const MainScriptEntry*,int>> base_entry_list;
-    for(auto& entry: m_main_items) {
-        base_entry_list.emplace_back(&entry, 0);
-    }
+// Result BXR::extract(std::filesystem::path const &savepath) const
+// {
+//     QFile file(savepath);
+//     if(!file.open(QIODevice::WriteOnly)){
+//         return {false, "unable to open the file"};
+//     }
+//     QXmlStreamWriter xml_writer(&file);
+//     xml_writer.setAutoFormatting(true);
+//     std::vector<std::pair<const MainScriptEntry*,int>> base_entry_list;
+//     for(auto& entry: m_main_items) {
+//         base_entry_list.emplace_back(&entry, 0);
+//     }
 
-    for(auto iter = base_entry_list.begin(); iter != base_entry_list.end(); ++iter) {
-        if (-1 != iter->first->next_ticks) {
-            std::for_each(iter + 1, base_entry_list.begin() + iter->first->next_ticks, [](auto& pair){
-                ++pair.second;
-            });
-        }
-    }
+//     for(auto iter = base_entry_list.begin(); iter != base_entry_list.end(); ++iter) {
+//         if (-1 != iter->first->next_ticks) {
+//             std::for_each(iter + 1, base_entry_list.begin() + iter->first->next_ticks, [](auto& pair){
+//                 ++pair.second;
+//             });
+//         }
+//     }
 
-    for (auto iter = base_entry_list.begin(); iter != base_entry_list.end(); ++iter) {
-        auto const &[entry, power] = *iter;
-        xml_writer.writeStartElement(QString::fromStdString(std::string(entry->tag_view)));
-        if (-1 != entry->offset) {
-            xml_writer.writeAttribute(m_property_name, entry->symbol);
-        }
-        if (-1 != entry->offset_unicode) {
-            xml_writer.writeAttribute(unicode_literal, entry->unicode);
-        }
-        for (auto child : entry->subscript_children) {
-            if (child->symbol.empty()) {
-                xml_writer.writeStartElement(child->tag_view);
-                xml_writer.writeAttribute(type_hack_literal, type_sub_literal);
+//     for (auto iter = base_entry_list.begin(); iter != base_entry_list.end(); ++iter) {
+//         auto const &[entry, power] = *iter;
+//         xml_writer.writeStartElement(QString::fromStdString(std::string(entry->tag_view)));
+//         if (-1 != entry->offset) {
+//             xml_writer.writeAttribute(m_property_name, entry->symbol);
+//         }
+//         if (-1 != entry->offset_unicode) {
+//             xml_writer.writeAttribute(unicode_literal, entry->unicode);
+//         }
+//         for (auto child : entry->subscript_children) {
+//             if (child->symbol.empty()) {
+//                 xml_writer.writeStartElement(child->tag_view);
+//                 xml_writer.writeAttribute(type_hack_literal, type_sub_literal);
 
-                xml_writer.writeEndElement();
-            } else {
-                xml_writer.writeTextElement(child->tag_view, child->symbol);
-            }
-        }
-        //Compare power of the next element to understand when it's time to step out
-        if (auto const next = iter + 1; next != base_entry_list.end()) {
-            if (auto const power_diff = power - next->second; power_diff >= 0) {
-                xml_writer.writeEndElement();
-                for (int d = 0; d < power_diff; ++d) {
-                    xml_writer.writeEndElement();
-                }
-            }
-        }
-    }
-    xml_writer.writeEndDocument();    
-    return {true, ""};
+//                 xml_writer.writeEndElement();
+//             } else {
+//                 xml_writer.writeTextElement(child->tag_view, child->symbol);
+//             }
+//         }
+//         //Compare power of the next element to understand when it's time to step out
+//         if (auto const next = iter + 1; next != base_entry_list.end()) {
+//             if (auto const power_diff = power - next->second; power_diff >= 0) {
+//                 xml_writer.writeEndElement();
+//                 for (int d = 0; d < power_diff; ++d) {
+//                     xml_writer.writeEndElement();
+//                 }
+//             }
+//         }
+//     }
+//     xml_writer.writeEndDocument();
+//     return {true, ""};
+// }
+
+void BXR::SubScriptEntry::setNode(pugi::xml_node &parent) const {
+  auto node = parent.append_child(pugi::xml_node_type::node_element);
+  node.set_name(tag_view.data());
+  auto text = node.append_child(pugi::xml_node_type::node_pcdata);
+  text.set_value(symbol.c_str());
 }
 
-Result BXR::inject(std::filesystem::path const& openpath)
+void BXR::MainScriptEntry::setNode(pugi::xml_node &parent, std::string const& property_name) const {
+  auto node = parent.append_child(pugi::xml_node_type::node_element);
+
+  node.set_name(tag_view.data());
+
+  if (-1 != offset) {
+    auto attr = node.append_attribute(property_name.c_str());
+    attr.set_value(symbol.c_str());
+  }
+
+  if(-1 != offset_unicode) {
+    WidestringConv converter;
+    auto uni_attr = node.append_attribute(unicode_literal);
+    uni_attr.set_value(converter.to_bytes(unicode).c_str());
+  }
+
+  for(auto const& child: children) {
+    child->setNode(node, property_name);
+  }
+
+  for(auto const& sub_child: subscript_children) {
+    sub_child->setNode(node);
+  }
+}
+
+Result BXR::extract(std::filesystem::path const &savepath) const
 {
-    auto const processAtributes = [this](QXmlStreamAttributes const& attributes)
-        -> std::tuple<std::string, std::u16string, CandidateType> {
-      auto type = CandidateType::main;
-      if (attributes.empty()) {
-        return {{}, {}, type};
-      }
-      std::string value;
-      std::u16string unicode;
+  pugi::xml_document doc;
 
-      for (auto const& attribute : attributes) {
-        if (QString(unicode_literal) == attribute.name()) {
-          unicode = attribute.value().toString().toStdU16String();
+  for(auto const& root_elem: m_root) {
+    root_elem->setNode(doc, m_property_name);
+  }
+
+  doc.save_file(savepath.string().c_str());
+  return {true, ""};
+}
+
+// Result BXR::inject(std::filesystem::path const& openpath)
+// {
+//     auto const processAtributes = [this](QXmlStreamAttributes const& attributes)
+//         -> std::tuple<std::string, std::u16string, CandidateType> {
+//       auto type = CandidateType::main;
+//       if (attributes.empty()) {
+//         return {{}, {}, type};
+//       }
+//       std::string value;
+//       std::u16string unicode;
+
+//       for (auto const& attribute : attributes) {
+//         if (QString(unicode_literal) == attribute.name()) {
+//           unicode = attribute.value().toString().toStdU16String();
+//           continue;
+//         }
+//         if (QString(type_hack_literal) == attribute.name()) {
+//           if (attribute.value() == QString(type_sub_literal)) {
+//             type = CandidateType::sub;
+//           }
+//           /*if(attribute.value() == QString("main")){
+//             type = CandidateType::main;
+//           }*/
+//           continue;
+//         }
+//         m_property_name = attribute.name().toString().toStdString();
+//         value = attribute.value().toString().toStdString();
+//       }
+//       return {value, unicode, type};
+//     };
+//     reset();
+//     QFile file(openpath);
+//     if (!file.open(QIODevice::ReadOnly)) {
+//         return {false, "unable to open the file"};
+//     }
+//     QXmlStreamReader xml_reader(&file);
+
+//     std::vector<Candidate> candidates;
+
+//     int power = -1;
+//     while (!xml_reader.atEnd()) {
+//        switch(xml_reader.readNext()) {
+//        case QXmlStreamReader::StartDocument:
+//             break;
+//        case QXmlStreamReader::EndDocument:
+//             break;
+//        case QXmlStreamReader::StartElement:
+//        {
+//             ++power;
+//             auto const [value, unicode, type] = processAtributes(xml_reader.attributes());
+//             candidates.emplace_back(Candidate{.tag = xml_reader.name().toString().toStdString(), .value = value, .unicode = unicode, .power = power, .type = type});
+//        }
+//             break;
+//        case QXmlStreamReader::EndElement:
+//             //Instead of using hack, we can
+//             --power;
+//             break;
+//        case QXmlStreamReader::Characters:
+//             if (xml_reader.text().startsWith('\n')) {
+//                 break;
+//             } else {
+//                 if (candidates.empty()) {
+//                     xml_reader.raiseError("Wrong sequence. Got characters with an empty stack.");
+//                     break;
+//                 }
+//                 candidates.back().type = CandidateType::sub;
+//                 candidates.back().value = xml_reader.text().toString().toStdString();
+//             }
+//             break;
+//        default:
+//             break;
+//        }
+//     }
+//     if (xml_reader.hasError()) {
+//        return {false,
+//                "XML formatting error: " + xml_reader.errorString().toStdString()};
+//     }
+//     auto const main_items = candidates | adaptor::filtered(filterCandidateType<CandidateType::main>);
+//     auto const sub_items = candidates | adaptor::filtered(filterCandidateType<CandidateType::sub>);
+//     //Collect tags
+//     int32_t offset_counter = 0; //We're gonna enumerate offsets in [main tag, sub tag, entries] order.
+//     auto const addTag = [&offset_counter](Candidate const& source, auto& taglist){
+//       if(auto const res = std::ranges::find_if(taglist, [&source](auto const& entry){
+//         return source.tag == entry.symbol;
+//           }); res == taglist.end()) {
+//         auto const offset = offset_counter++;
+//         typename std::remove_reference<decltype(taglist)>::type::value_type entry;
+//         entry.offset = offset;
+//         entry.symbol = source.tag;
+//         taglist.push_back(entry);
+//       }
+//     };
+//     for(auto const& item: main_items) {
+//        addTag(item, m_main_tags);
+//     }
+//     decltype(m_sub_tags)::value_type subentry;
+//     subentry.offset = offset_counter++;
+//     subentry.symbol = m_property_name;
+//     m_sub_tags.emplace_back(subentry); //Add property name as our first subtag
+//     for(auto const& item: sub_items) {
+//        addTag(item, m_sub_tags);
+//     }
+//     //The memory manipulation required to prepare vectors
+//     //so they wouldn't invalidate pointers when reallocating themselves
+//     auto const main_items_size = std::ranges::distance(main_items);
+//     auto const sub_items_size = candidates.size() - main_items_size;
+//     m_main_items.reserve(main_items_size);
+//     m_sub_items.reserve(sub_items_size);
+//     //Collect items
+//     auto const match_tag = [](auto const& taglist, std::string const& tag, OffsetTaggable* entry){
+//       auto const res = std::ranges::find_if(taglist, [&tag](Offsetable const& entry){
+//         return tag == entry.symbol;
+//       });
+//         entry->data_tag = std::distance(taglist.begin(), res);
+//         entry->tag_view = res->symbol;
+//     };
+//     for (auto const& item : candidates) {
+//          if (item.type == CandidateType::main) {
+//             auto& entry = m_main_items.emplace_back();
+//             match_tag(m_main_tags, item.tag, &entry);
+//             if(!item.value.empty()){
+//               entry.symbol = item.value;
+//               entry.offset = offset_counter++;
+//             }
+
+//             entry.power = item.power;
+//             if(!item.unicode.empty()) {
+//                 entry.unicode = item.unicode;
+//                 entry.offset_unicode = 1;
+//             }
+//          } else {
+//             auto& entry = m_sub_items.emplace_back();
+//             match_tag(m_sub_tags, item.tag, &entry);
+//             entry.symbol = item.value;
+//             entry.offset = offset_counter++;
+
+//             //Being a sub means that the entry is a child of a previous main entry
+//             auto &parent = m_main_items.back();
+//             if(parent.subscript_children.empty()) {
+//               parent.index_sub_item = m_sub_items.size() - 1;
+//             }
+//             parent.subscript_children.push_back(&entry);
+//             //We will process child-list later
+//          }
+//     }
+//     //Enumerate entries
+//     {
+//       int index = 0;
+//       std::for_each(m_main_items.begin(), m_main_items.end(), [&index](MainScriptEntry& child){
+//         child.before = index - 1;
+//         child.next = index + 1;
+//         ++index;
+//       });
+//       m_main_items.back().next = -1;
+//     }
+//     //Build tag hierarchy
+//     {
+//         auto iter = m_main_items.begin();
+//         while(iter != m_main_items.end()) {
+//             if(auto const next = iter + 1; next != m_main_items.end()) {
+//               if(next->power < iter->power){
+//                     iter->next_ticks = std::distance(m_main_items.begin(), next);
+//                     ++iter;
+//                     continue;
+//               }
+//             }
+//             auto const closure = std::find_if(iter + 1, m_main_items.end(), [&iter](MainScriptEntry& entry){
+//                 return entry.power == iter->power;
+//             });
+//             iter->next_ticks = std::distance(m_main_items.begin(), closure);
+//             ++iter;
+//         }
+//     }
+//     //Enumerate children
+//     for (auto& item: m_main_items | adaptor::filtered([](MainScriptEntry const& entry) {
+//                         return !entry.subscript_children.empty();
+//                       })) {
+//          int index = item.index_sub_item;
+//          std::for_each(item.subscript_children.begin(), item.subscript_children.end() - 1, [&index](SubScriptEntry* child){
+//            child->next = ++index;
+//          });
+//          item.subscript_children.back()->next = -1;
+//     }
+//     return {true,"succesfully imported from XML"};
+// }
+
+template<pugi::xml_node_type T>
+bool checkNodeType(pugi::xml_node const& node) {
+  return node.type() == T;
+}
+
+Result BXR::inject(std::filesystem::path const &openpath) {
+  reset();
+  pugi::xml_document doc;
+  doc.load_file(openpath.string().c_str());
+
+  std::vector<CandidatePtr> root_candidates;
+  std::vector<CandidatePtr> main_items;
+  std::vector<CandidatePtr> sub_items;
+
+  WidestringConv conventer;
+
+  std::function<void(CandidatePtr &, pugi::xml_node const &, int)> nodeWalker;
+  nodeWalker = [&nodeWalker, &conventer, &main_items, &sub_items,
+                this](CandidatePtr &parent, pugi::xml_node const &node,
+                      int power) {
+    parent->tag = node.name();
+    parent->power = power;
+
+    for (auto const &attr : node.attributes()) {
+      if (0 == std::strcmp(unicode_literal, attr.name())) {
+        parent->unicode = conventer.from_bytes(attr.value());
+      } else {
+        if (m_property_name.empty()) {
+          m_property_name = attr.name();
+        }
+        parent->value = node.attributes_begin()->value();
+      }
+    }
+
+    if (node.empty()) {
+      parent->type = CandidateType::sub;
+    }
+
+    // parent.main_children.reserve(std::ranges::distance(node |
+    // std::views::filter(checkNodeType<pugi::xml_node_type::node_element>)));
+    // parent.sub_children.reserve(std::ranges::distance(node |
+    // std::views::filter([](pugi::xml_node const& node){
+    //   return pugi::xml_node_type::node_pcdata ==
+    //   node.children().begin()->type();
+    // })));
+    for (auto const &n_child : node) {
+      if (n_child.type() == pugi::xml_node_type::node_pcdata) {
+        parent->type = CandidateType::sub;
+        parent->value = n_child.value();
+        break;
+      }
+      CandidatePtr c_child = std::make_shared<Candidate>();
+      nodeWalker(c_child, n_child, power + 1);
+      switch (c_child->type) {
+      case CandidateType::main: {
+        parent->main_children.push_back(c_child);
+      } break;
+      case CandidateType::sub: {
+        parent->sub_children.push_back(c_child);
+      } break;
+      default:
+        break;
+      }
+    }
+  };
+  //root_candidates.reserve(std::ranges::distance(doc));
+  for (auto const &root_elem : doc) {
+    auto &candidate = root_candidates.emplace_back(std::make_shared<Candidate>());
+    main_items.push_back(candidate);
+    nodeWalker(candidate, root_elem, 0);
+  }
+  std::function<void(CandidatePtr const&)> candidateUnwrapper;
+  candidateUnwrapper = [&candidateUnwrapper, &main_items, &sub_items](CandidatePtr const& candidate) {
+    for(auto const& sub: candidate->sub_children) {
+      sub_items.push_back(sub);
+    }
+    for(auto const& main: candidate->main_children) {
+      main_items.push_back(main);
+      candidateUnwrapper(main);
+    }
+  };
+  for(auto const& root_cand: root_candidates) {
+    candidateUnwrapper(root_cand);
+  }
+  //
+  m_main_items.reserve(main_items.size());
+  m_sub_items.reserve(sub_items.size());
+  // Collect tags
+  int32_t offset_counter = 0;
+  // We're gonna enumerate offsets in {main tag, sub tag, entries} order.
+  auto const addTag = [&offset_counter](CandidatePtr const& source,
+                                        auto &taglist) {
+    if (auto const res = std::ranges::find_if(taglist,
+                                              [&source](auto const &entry) {
+                                                return source->tag ==
+                                                       entry.symbol;
+                                              });
+        res == taglist.end()) {
+      auto const offset = offset_counter++;
+      typename std::remove_reference<decltype(taglist)>::type::value_type entry;
+      entry.offset = offset;
+      entry.symbol = source->tag;
+      taglist.push_back(entry);
+    }
+  };
+  for (auto const& item : main_items) {
+    addTag(item, m_main_tags);
+  }
+  decltype(m_sub_tags)::value_type subentry;
+  subentry.offset = offset_counter++;
+  subentry.symbol = m_property_name;
+  m_sub_tags.emplace_back(subentry); // Add property name as our first subtag
+  for (auto const& item : sub_items) {
+    addTag(item, m_sub_tags);
+  }
+  auto const match_tag = [](auto const &taglist, std::string const &tag,
+                            OffsetTaggable *entry) {
+    auto const res =
+        std::ranges::find_if(taglist, [&tag](Offsetable const &entry) {
+          return tag == entry.symbol;
+        });
+    entry->data_tag = std::distance(taglist.begin(), res);
+    entry->tag_view = res->symbol;
+  };
+  std::function<void(CandidatePtr const&)> entryUnwrapper;
+  auto const childUnwrapper = [&offset_counter, this, &match_tag](CandidatePtr const& c_ptr) {
+    auto &entry = m_sub_items.emplace_back();
+    match_tag(m_sub_tags, c_ptr->tag, &entry);
+    entry.symbol = c_ptr->value;
+    entry.offset = offset_counter++;
+
+    // Being a sub means that the entry is a child of a previous main entry
+    auto &parent = m_main_items.back();
+    if (parent.subscript_children.empty()) {
+      parent.index_sub_item = m_sub_items.size() - 1;
+    }
+    parent.subscript_children.push_back(&entry);
+  };
+  entryUnwrapper = [&offset_counter, &entryUnwrapper, this, &match_tag, &childUnwrapper](CandidatePtr const& c_ptr) {
+    auto &entry = m_main_items.emplace_back();
+    match_tag(m_main_tags, c_ptr->tag, &entry);
+    if (!c_ptr->value.empty()) {
+      entry.symbol = c_ptr->value;
+      entry.offset = offset_counter++;
+    }
+
+    entry.power = c_ptr->power;
+    if (!c_ptr->unicode.empty()) {
+      entry.unicode = c_ptr->unicode;
+      entry.offset_unicode = 1;
+    }
+
+    if(entry.power) {
+      auto &parent = m_main_items.back();
+      parent.children.push_back(&entry);
+    }
+
+    for(auto const& child: c_ptr->sub_children) {
+      childUnwrapper(child);
+    }
+    for(auto const& child: c_ptr->main_children) {
+      entryUnwrapper(child);
+    }
+  };
+  for(auto& candidate: root_candidates) {
+    entryUnwrapper(candidate);
+  }
+  // Enumerate entries
+  {
+    int index = 0;
+    std::for_each(m_main_items.begin(), m_main_items.end(),
+                  [&index](MainScriptEntry &child) {
+                    child.before = index - 1;
+                    child.next = index + 1;
+                    ++index;
+                  });
+    m_main_items.back().next = -1;
+  }
+  // Build tag hierarchy
+  {
+    auto iter = m_main_items.begin();
+    while (iter != m_main_items.end()) {
+      if (auto const next = iter + 1; next != m_main_items.end()) {
+        if (next->power < iter->power) {
+          iter->next_ticks = std::distance(m_main_items.begin(), next);
+          ++iter;
           continue;
         }
-        if (QString(type_hack_literal) == attribute.name()) {
-          if (attribute.value() == QString(type_sub_literal)) {
-            type = CandidateType::sub;
-          }
-          /*if(attribute.value() == QString("main")){
-            type = CandidateType::main;
-          }*/
-          continue;
-        }
-        m_property_name = attribute.name().toString().toStdString();
-        value = attribute.value().toString().toStdString();
       }
-      return {value, unicode, type};
-    };
-    reset();
-    QFile file(openpath);
-    if (!file.open(QIODevice::ReadOnly)) {
-        return {false, "unable to open the file"};
+      auto const closure = std::find_if(iter + 1, m_main_items.end(),
+                                        [&iter](MainScriptEntry &entry) {
+                                          return entry.power == iter->power;
+                                        });
+      iter->next_ticks = std::distance(m_main_items.begin(), closure);
+      ++iter;
     }
-    QXmlStreamReader xml_reader(&file);
+  }
+  // Enumerate children
+  for (auto &item :
+       m_main_items | std::views::filter([](MainScriptEntry const &entry) {
+         return !entry.subscript_children.empty();
+       })) {
+    int index = item.index_sub_item;
+    std::for_each(item.subscript_children.begin(),
+                  item.subscript_children.end() - 1,
+                  [&index](SubScriptEntry *child) { child->next = ++index; });
+    item.subscript_children.back()->next = -1;
+  }
 
-    std::vector<Candidate> candidates;
-
-    int power = -1;
-    while (!xml_reader.atEnd()) {
-       switch(xml_reader.readNext()) {
-       case QXmlStreamReader::StartDocument:
-            break;
-       case QXmlStreamReader::EndDocument:
-            break;
-       case QXmlStreamReader::StartElement:
-       {
-            ++power;
-            auto const [value, unicode, type] = processAtributes(xml_reader.attributes());
-            candidates.emplace_back(Candidate{.tag = xml_reader.name().toString().toStdString(), .value = value, .unicode = unicode, .power = power, .type = type});
-       }
-            break;
-       case QXmlStreamReader::EndElement:
-            //Instead of using hack, we can
-            --power;
-            break;
-       case QXmlStreamReader::Characters:
-            if (xml_reader.text().startsWith('\n')) {
-                break;
-            } else {
-                if (candidates.empty()) {
-                    xml_reader.raiseError("Wrong sequence. Got characters with an empty stack.");
-                    break;
-                }
-                candidates.back().type = CandidateType::sub;
-                candidates.back().value = xml_reader.text().toString().toStdString();
-            }
-            break;
-       default:
-            break;
-       }
-    }
-    if (xml_reader.hasError()) {
-       return {false,
-               "XML formatting error: " + xml_reader.errorString().toStdString()};
-    }
-    auto const main_items = candidates | adaptor::filtered(filterCandidateType<CandidateType::main>);
-    auto const sub_items = candidates | adaptor::filtered(filterCandidateType<CandidateType::sub>);
-    //Collect tags
-    int32_t offset_counter = 0; //We're gonna enumerate offsets in [main tag, sub tag, entries] order.
-    auto const addTag = [&offset_counter](Candidate const& source, auto& taglist){
-      if(auto const res = std::ranges::find_if(taglist, [&source](auto const& entry){
-        return source.tag == entry.symbol;
-          }); res == taglist.end()) {
-        auto const offset = offset_counter++;
-        typename std::remove_reference<decltype(taglist)>::type::value_type entry;
-        entry.offset = offset;
-        entry.symbol = source.tag;
-        taglist.push_back(entry);
-      }
-    };
-    for(auto const& item: main_items) {
-       addTag(item, m_main_tags);
-    }
-    decltype(m_sub_tags)::value_type subentry;
-    subentry.offset = offset_counter++;
-    subentry.symbol = m_property_name;
-    m_sub_tags.emplace_back(subentry); //Add property name as our first subtag
-    for(auto const& item: sub_items) {
-       addTag(item, m_sub_tags);
-    }
-    //The memory manipulation required to prepare vectors
-    //so they wouldn't invalidate pointers when reallocating themselves
-    auto const main_items_size = std::ranges::distance(main_items);
-    auto const sub_items_size = candidates.size() - main_items_size;
-    m_main_items.reserve(main_items_size);
-    m_sub_items.reserve(sub_items_size);
-    //Collect items
-    auto const match_tag = [](auto const& taglist, std::string const& tag, OffsetTaggable* entry){
-      auto const res = std::ranges::find_if(taglist, [&tag](Offsetable const& entry){
-        return tag == entry.symbol;
-      });
-        entry->data_tag = std::distance(taglist.begin(), res);
-        entry->tag_view = res->symbol;
-    };
-    for (auto const& item : candidates) {
-         if (item.type == CandidateType::main) {
-            auto& entry = m_main_items.emplace_back();
-            match_tag(m_main_tags, item.tag, &entry);
-            if(!item.value.empty()){
-              entry.symbol = item.value;
-              entry.offset = offset_counter++;
-            }
-
-            entry.power = item.power;
-            if(!item.unicode.empty()) {
-                entry.unicode = item.unicode;
-                entry.offset_unicode = 1;
-            }
-         } else {
-            auto& entry = m_sub_items.emplace_back();
-            match_tag(m_sub_tags, item.tag, &entry);
-            entry.symbol = item.value;
-            entry.offset = offset_counter++;
-
-            //Being a sub means that the entry is a child of a previous main entry
-            auto &parent = m_main_items.back();
-            if(parent.subscript_children.empty()) {
-              parent.index_sub_item = m_sub_items.size() - 1;
-            }
-            parent.subscript_children.push_back(&entry);
-            //We will process child-list later
-         }
-    }
-    //Enumerate entries
-    {
-      int index = 0;
-      std::for_each(m_main_items.begin(), m_main_items.end(), [&index](MainScriptEntry& child){
-        child.before = index - 1;
-        child.next = index + 1;
-        ++index;
-      });
-      m_main_items.back().next = -1;
-    }
-    //Build tag hierarchy
-    {
-        auto iter = m_main_items.begin();
-        while(iter != m_main_items.end()) {
-            if(auto const next = iter + 1; next != m_main_items.end()) {
-              if(next->power < iter->power){
-                    iter->next_ticks = std::distance(m_main_items.begin(), next);
-                    ++iter;
-                    continue;
-              }
-            }
-            auto const closure = std::find_if(iter + 1, m_main_items.end(), [&iter](MainScriptEntry& entry){
-                return entry.power == iter->power;
-            });
-            iter->next_ticks = std::distance(m_main_items.begin(), closure);
-            ++iter;
-        }
-    }
-    //Enumerate children
-    for (auto& item: m_main_items | adaptor::filtered([](MainScriptEntry const& entry) {
-                        return !entry.subscript_children.empty();
-                      })) {
-         int index = item.index_sub_item;
-         std::for_each(item.subscript_children.begin(), item.subscript_children.end() - 1, [&index](SubScriptEntry* child){
-           child->next = ++index;
-         });
-         item.subscript_children.back()->next = -1;
-    }
-    return {true,"succesfully imported from XML"};
+  return {true, "xml data injected"};
 }
 
 uint32_t BXR::getUnicodeSize() const {
@@ -517,10 +814,7 @@ Result BXR::saveToStream(std::basic_ostream<char> *stream) {
     insertIntoQueue(m_main_items, offset_queue);
     insertIntoQueue(m_sub_items, offset_queue);
 
-    std::ranges::sort(offset_queue,
-                      [](Offsetable const* left, Offsetable const* right) {
-                        return left->offset < right->offset;
-                      });
+    std::ranges::sort(offset_queue, {}, &Offsetable::offset);
 
     std::vector<char> string_library;
     string_library.reserve(calculateStringSize());
@@ -583,30 +877,9 @@ void BXR::reset() {
     m_sub_tags.clear();
     m_main_items.clear();
     m_sub_items.clear();
+    m_root.clear();
     m_property_name.clear();
 }
-
-//QJsonArray BXR::getJson()
-//{
-//    QJsonArray BXR_json;
-//    for (auto const &entry : unicode_containing_entries) {
-//        BXR_json.append(QString::fromStdU16String(entry.get().unicode));
-//    }
-//    return BXR_json;
-//}
-
-//Result BXR::setJson(const QJsonValue& json)
-//{
-//    auto const array = json.toArray();
-//    if (array.size() != unicode_containing_entries.size()) {
-//        return {false, "BXR string injection error: Count mismatch. Expected " + std::to_string(unicode_containing_entries.size()) + ", got " + std::to_string(array.size()) + ". Are you loading the correct file?"};
-//    }
-//
-//    for (size_t ind = 0; ind < unicode_containing_entries.size(); ++ind) {
-//        unicode_containing_entries[ind].get().unicode = array.at(ind).toString().toStdU16String();
-//    }
-//    return {true, ""};
-//}
 
 }
 }
