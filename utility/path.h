@@ -32,9 +32,9 @@ bool isEmptyRecursive(std::filesystem::path dir) {
 }
 
 template<typename _Pred>
-void iterateFiles(std::filesystem::path const& gamepath, std::string const& type,
+void iterateFiles(std::filesystem::path const& path, std::string const& type,
                 _Pred const& callback) {
-  auto const iter = std::filesystem::recursive_directory_iterator(gamepath);
+  auto const iter = std::filesystem::recursive_directory_iterator(path);
   for (auto const& file :
        iter
            | std::views::filter(

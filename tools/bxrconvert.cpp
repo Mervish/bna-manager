@@ -6,6 +6,28 @@
 
 #include "filetypes/bxr.h"
 
+void testBXR(std::filesystem::path const &path) {
+  std::filesystem::path test_root = path.string() + "_test";
+  imas::path::iterateFiles(
+      path, ".bxr", [&path, &test_root](std::filesystem::path const &filepath) {
+        auto const rel = std::filesystem::relative(filepath, path);
+        std::filesystem::path xml_path = filepath;
+        xml_path.replace_extension(".xml");
+        std::filesystem::path test_path = test_root / rel;
+        std::filesystem::create_directories(test_path.parent_path());
+        {
+          imas::file::BXR bxr;
+          bxr.loadFromFile(filepath);
+          bxr.extract(xml_path);
+        }
+        {
+          imas::file::BXR bxr;
+          bxr.inject(xml_path);
+          bxr.saveToFile(test_path);
+        }
+      });
+}
+
 int main(int argc, char *argv[])
 {
     if(argc < 2) {
@@ -17,6 +39,10 @@ int main(int argc, char *argv[])
 
     auto path = std::filesystem::path(argv[1]);
     //we can accept only .bxr or .xml files
+    if(std::filesystem::is_directory(path)) {
+      testBXR(path);
+      return 0;
+    }
     if(!std::filesystem::is_regular_file(path)) {
             std::cout << path << " is not a file."  << std::endl;
     }
@@ -27,7 +53,6 @@ int main(int argc, char *argv[])
     }
 
     imas::file::BXR bxr;
-    imas::file::BXR bxr_comp;
     if(extension == ".bxr") {
         bxr.loadFromFile(path);
         auto test_path = path;

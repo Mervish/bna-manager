@@ -38,7 +38,7 @@ struct SectionSizes {
     unsigned int tag_sub_script;
     unsigned int main_script;
     unsigned int sub_script;
-    unsigned int symbol_offset;
+    unsigned int symbol;
 };
 
 enum class CandidateType
@@ -54,12 +54,13 @@ typedef std::shared_ptr<Candidate> CandidatePtr;
 
 struct Candidate {
     std::string tag;
-    std::string value;
-    std::u16string unicode;
-    int power;
+    std::optional<std::string> value;
+    std::optional<std::u16string> unicode;
+    int next_ticks;
     CandidateType type = CandidateType::main;
     std::vector<CandidatePtr> main_children;
     std::vector<CandidatePtr> sub_children;
+    std::vector<CandidatePtr> sub_virtual;
 };
 
 template <CandidateType F>
@@ -81,6 +82,20 @@ std::vector<imas::file::BXR::MainScriptEntry*> makeChildrenHierarchy(R const& ra
     cur_tick += ticks;
   }
   return res;
+};
+
+bool tryTag(std::string const &tag, auto &taglist) {
+  return std::ranges::find_if(taglist, [&tag](auto const &entry) {
+           return tag == entry.symbol;
+         }) == taglist.end();
+};
+void addTag(CandidatePtr const& source,
+                                      auto &taglist) {
+  if (tryTag(source->tag, taglist)) {
+    typename std::remove_reference<decltype(taglist)>::type::value_type entry;
+    entry.symbol = source->tag;
+    taglist.push_back(entry);
+  }
 };
 }
 
@@ -115,7 +130,7 @@ Result BXR::openFromStream(std::basic_istream<char> *stream)
     sizes.tag_sub_script  = imas::utility::readLong(stream);
     sizes.main_script     = imas::utility::readLong(stream);
     sizes.sub_script      = imas::utility::readLong(stream);
-    sizes.symbol_offset   = imas::utility::readLong(stream);
+    sizes.symbol          = imas::utility::readLong(stream);
 
     // BLOCK1
     // Then we read main script tag offset
@@ -157,7 +172,7 @@ Result BXR::openFromStream(std::basic_istream<char> *stream)
 
     // BLOCK5
     // Then we read some sort of symbolic data
-    std::vector<char> symbol(sizes.symbol_offset);
+    std::vector<char> symbol(sizes.symbol);
     stream->read(symbol.data(), symbol.size());
 
     //
@@ -256,60 +271,6 @@ Result BXR::openFromStream(std::basic_istream<char> *stream)
     return {true, "succesfully loaded"};
 }
 
-// Result BXR::extract(std::filesystem::path const &savepath) const
-// {
-//     QFile file(savepath);
-//     if(!file.open(QIODevice::WriteOnly)){
-//         return {false, "unable to open the file"};
-//     }
-//     QXmlStreamWriter xml_writer(&file);
-//     xml_writer.setAutoFormatting(true);
-//     std::vector<std::pair<const MainScriptEntry*,int>> base_entry_list;
-//     for(auto& entry: m_main_items) {
-//         base_entry_list.emplace_back(&entry, 0);
-//     }
-
-//     for(auto iter = base_entry_list.begin(); iter != base_entry_list.end(); ++iter) {
-//         if (-1 != iter->first->next_ticks) {
-//             std::for_each(iter + 1, base_entry_list.begin() + iter->first->next_ticks, [](auto& pair){
-//                 ++pair.second;
-//             });
-//         }
-//     }
-
-//     for (auto iter = base_entry_list.begin(); iter != base_entry_list.end(); ++iter) {
-//         auto const &[entry, power] = *iter;
-//         xml_writer.writeStartElement(QString::fromStdString(std::string(entry->tag_view)));
-//         if (-1 != entry->offset) {
-//             xml_writer.writeAttribute(m_property_name, entry->symbol);
-//         }
-//         if (-1 != entry->offset_unicode) {
-//             xml_writer.writeAttribute(unicode_literal, entry->unicode);
-//         }
-//         for (auto child : entry->subscript_children) {
-//             if (child->symbol.empty()) {
-//                 xml_writer.writeStartElement(child->tag_view);
-//                 xml_writer.writeAttribute(type_hack_literal, type_sub_literal);
-
-//                 xml_writer.writeEndElement();
-//             } else {
-//                 xml_writer.writeTextElement(child->tag_view, child->symbol);
-//             }
-//         }
-//         //Compare power of the next element to understand when it's time to step out
-//         if (auto const next = iter + 1; next != base_entry_list.end()) {
-//             if (auto const power_diff = power - next->second; power_diff >= 0) {
-//                 xml_writer.writeEndElement();
-//                 for (int d = 0; d < power_diff; ++d) {
-//                     xml_writer.writeEndElement();
-//                 }
-//             }
-//         }
-//     }
-//     xml_writer.writeEndDocument();
-//     return {true, ""};
-// }
-
 void BXR::SubScriptEntry::setNode(pugi::xml_node &parent) const {
   auto node = parent.append_child(pugi::xml_node_type::node_element);
   node.set_name(tag_view.data());
@@ -333,12 +294,12 @@ void BXR::MainScriptEntry::setNode(pugi::xml_node &parent, std::string const& pr
     uni_attr.set_value(converter.to_bytes(unicode).c_str());
   }
 
-  for(auto const& child: children) {
-    child->setNode(node, property_name);
-  }
-
   for(auto const& sub_child: subscript_children) {
     sub_child->setNode(node);
+  }
+
+  for(auto const& child: children) {
+    child->setNode(node, property_name);
   }
 }
 
@@ -353,192 +314,6 @@ Result BXR::extract(std::filesystem::path const &savepath) const
   doc.save_file(savepath.string().c_str());
   return {true, ""};
 }
-
-// Result BXR::inject(std::filesystem::path const& openpath)
-// {
-//     auto const processAtributes = [this](QXmlStreamAttributes const& attributes)
-//         -> std::tuple<std::string, std::u16string, CandidateType> {
-//       auto type = CandidateType::main;
-//       if (attributes.empty()) {
-//         return {{}, {}, type};
-//       }
-//       std::string value;
-//       std::u16string unicode;
-
-//       for (auto const& attribute : attributes) {
-//         if (QString(unicode_literal) == attribute.name()) {
-//           unicode = attribute.value().toString().toStdU16String();
-//           continue;
-//         }
-//         if (QString(type_hack_literal) == attribute.name()) {
-//           if (attribute.value() == QString(type_sub_literal)) {
-//             type = CandidateType::sub;
-//           }
-//           /*if(attribute.value() == QString("main")){
-//             type = CandidateType::main;
-//           }*/
-//           continue;
-//         }
-//         m_property_name = attribute.name().toString().toStdString();
-//         value = attribute.value().toString().toStdString();
-//       }
-//       return {value, unicode, type};
-//     };
-//     reset();
-//     QFile file(openpath);
-//     if (!file.open(QIODevice::ReadOnly)) {
-//         return {false, "unable to open the file"};
-//     }
-//     QXmlStreamReader xml_reader(&file);
-
-//     std::vector<Candidate> candidates;
-
-//     int power = -1;
-//     while (!xml_reader.atEnd()) {
-//        switch(xml_reader.readNext()) {
-//        case QXmlStreamReader::StartDocument:
-//             break;
-//        case QXmlStreamReader::EndDocument:
-//             break;
-//        case QXmlStreamReader::StartElement:
-//        {
-//             ++power;
-//             auto const [value, unicode, type] = processAtributes(xml_reader.attributes());
-//             candidates.emplace_back(Candidate{.tag = xml_reader.name().toString().toStdString(), .value = value, .unicode = unicode, .power = power, .type = type});
-//        }
-//             break;
-//        case QXmlStreamReader::EndElement:
-//             //Instead of using hack, we can
-//             --power;
-//             break;
-//        case QXmlStreamReader::Characters:
-//             if (xml_reader.text().startsWith('\n')) {
-//                 break;
-//             } else {
-//                 if (candidates.empty()) {
-//                     xml_reader.raiseError("Wrong sequence. Got characters with an empty stack.");
-//                     break;
-//                 }
-//                 candidates.back().type = CandidateType::sub;
-//                 candidates.back().value = xml_reader.text().toString().toStdString();
-//             }
-//             break;
-//        default:
-//             break;
-//        }
-//     }
-//     if (xml_reader.hasError()) {
-//        return {false,
-//                "XML formatting error: " + xml_reader.errorString().toStdString()};
-//     }
-//     auto const main_items = candidates | adaptor::filtered(filterCandidateType<CandidateType::main>);
-//     auto const sub_items = candidates | adaptor::filtered(filterCandidateType<CandidateType::sub>);
-//     //Collect tags
-//     int32_t offset_counter = 0; //We're gonna enumerate offsets in [main tag, sub tag, entries] order.
-//     auto const addTag = [&offset_counter](Candidate const& source, auto& taglist){
-//       if(auto const res = std::ranges::find_if(taglist, [&source](auto const& entry){
-//         return source.tag == entry.symbol;
-//           }); res == taglist.end()) {
-//         auto const offset = offset_counter++;
-//         typename std::remove_reference<decltype(taglist)>::type::value_type entry;
-//         entry.offset = offset;
-//         entry.symbol = source.tag;
-//         taglist.push_back(entry);
-//       }
-//     };
-//     for(auto const& item: main_items) {
-//        addTag(item, m_main_tags);
-//     }
-//     decltype(m_sub_tags)::value_type subentry;
-//     subentry.offset = offset_counter++;
-//     subentry.symbol = m_property_name;
-//     m_sub_tags.emplace_back(subentry); //Add property name as our first subtag
-//     for(auto const& item: sub_items) {
-//        addTag(item, m_sub_tags);
-//     }
-//     //The memory manipulation required to prepare vectors
-//     //so they wouldn't invalidate pointers when reallocating themselves
-//     auto const main_items_size = std::ranges::distance(main_items);
-//     auto const sub_items_size = candidates.size() - main_items_size;
-//     m_main_items.reserve(main_items_size);
-//     m_sub_items.reserve(sub_items_size);
-//     //Collect items
-//     auto const match_tag = [](auto const& taglist, std::string const& tag, OffsetTaggable* entry){
-//       auto const res = std::ranges::find_if(taglist, [&tag](Offsetable const& entry){
-//         return tag == entry.symbol;
-//       });
-//         entry->data_tag = std::distance(taglist.begin(), res);
-//         entry->tag_view = res->symbol;
-//     };
-//     for (auto const& item : candidates) {
-//          if (item.type == CandidateType::main) {
-//             auto& entry = m_main_items.emplace_back();
-//             match_tag(m_main_tags, item.tag, &entry);
-//             if(!item.value.empty()){
-//               entry.symbol = item.value;
-//               entry.offset = offset_counter++;
-//             }
-
-//             entry.power = item.power;
-//             if(!item.unicode.empty()) {
-//                 entry.unicode = item.unicode;
-//                 entry.offset_unicode = 1;
-//             }
-//          } else {
-//             auto& entry = m_sub_items.emplace_back();
-//             match_tag(m_sub_tags, item.tag, &entry);
-//             entry.symbol = item.value;
-//             entry.offset = offset_counter++;
-
-//             //Being a sub means that the entry is a child of a previous main entry
-//             auto &parent = m_main_items.back();
-//             if(parent.subscript_children.empty()) {
-//               parent.index_sub_item = m_sub_items.size() - 1;
-//             }
-//             parent.subscript_children.push_back(&entry);
-//             //We will process child-list later
-//          }
-//     }
-//     //Enumerate entries
-//     {
-//       int index = 0;
-//       std::for_each(m_main_items.begin(), m_main_items.end(), [&index](MainScriptEntry& child){
-//         child.before = index - 1;
-//         child.next = index + 1;
-//         ++index;
-//       });
-//       m_main_items.back().next = -1;
-//     }
-//     //Build tag hierarchy
-//     {
-//         auto iter = m_main_items.begin();
-//         while(iter != m_main_items.end()) {
-//             if(auto const next = iter + 1; next != m_main_items.end()) {
-//               if(next->power < iter->power){
-//                     iter->next_ticks = std::distance(m_main_items.begin(), next);
-//                     ++iter;
-//                     continue;
-//               }
-//             }
-//             auto const closure = std::find_if(iter + 1, m_main_items.end(), [&iter](MainScriptEntry& entry){
-//                 return entry.power == iter->power;
-//             });
-//             iter->next_ticks = std::distance(m_main_items.begin(), closure);
-//             ++iter;
-//         }
-//     }
-//     //Enumerate children
-//     for (auto& item: m_main_items | adaptor::filtered([](MainScriptEntry const& entry) {
-//                         return !entry.subscript_children.empty();
-//                       })) {
-//          int index = item.index_sub_item;
-//          std::for_each(item.subscript_children.begin(), item.subscript_children.end() - 1, [&index](SubScriptEntry* child){
-//            child->next = ++index;
-//          });
-//          item.subscript_children.back()->next = -1;
-//     }
-//     return {true,"succesfully imported from XML"};
-// }
 
 template<pugi::xml_node_type T>
 bool checkNodeType(pugi::xml_node const& node) {
@@ -556,12 +331,10 @@ Result BXR::inject(std::filesystem::path const &openpath) {
 
   WidestringConv conventer;
 
-  std::function<void(CandidatePtr &, pugi::xml_node const &, int)> nodeWalker;
+  std::function<void(CandidatePtr &, pugi::xml_node const &)> nodeWalker;
   nodeWalker = [&nodeWalker, &conventer, &main_items, &sub_items,
-                this](CandidatePtr &parent, pugi::xml_node const &node,
-                      int power) {
+                this](CandidatePtr &parent, pugi::xml_node const &node) {
     parent->tag = node.name();
-    parent->power = power;
 
     for (auto const &attr : node.attributes()) {
       if (0 == std::strcmp(unicode_literal, attr.name())) {
@@ -574,8 +347,11 @@ Result BXR::inject(std::filesystem::path const &openpath) {
       }
     }
 
-    if (node.empty()) {
+    //Detect empty subitems - <subtag></subtag>
+    if (!parent->unicode.has_value() && !parent->value.has_value() &&
+        node.children().empty()) {
       parent->type = CandidateType::sub;
+      return;
     }
 
     // parent.main_children.reserve(std::ranges::distance(node |
@@ -592,7 +368,7 @@ Result BXR::inject(std::filesystem::path const &openpath) {
         break;
       }
       CandidatePtr c_child = std::make_shared<Candidate>();
-      nodeWalker(c_child, n_child, power + 1);
+      nodeWalker(c_child, n_child);
       switch (c_child->type) {
       case CandidateType::main: {
         parent->main_children.push_back(c_child);
@@ -609,52 +385,66 @@ Result BXR::inject(std::filesystem::path const &openpath) {
   for (auto const &root_elem : doc) {
     auto &candidate = root_candidates.emplace_back(std::make_shared<Candidate>());
     main_items.push_back(candidate);
-    nodeWalker(candidate, root_elem, 0);
+    nodeWalker(candidate, root_elem);
   }
-  std::function<void(CandidatePtr const&)> candidateUnwrapper;
-  candidateUnwrapper = [&candidateUnwrapper, &main_items, &sub_items](CandidatePtr const& candidate) {
+  std::function<int(CandidatePtr const&, int)> candidateUnwrapper;
+  candidateUnwrapper = [&candidateUnwrapper, &main_items, &sub_items, this](CandidatePtr const& candidate, int cur_tick) -> int {
+    int ticks = 1;
+    if(candidate->value.has_value()) {
+      candidate->sub_virtual.push_back(candidate);
+    }
     for(auto const& sub: candidate->sub_children) {
       sub_items.push_back(sub);
+      candidate->sub_virtual.push_back(sub);
+    }
+    //processing children
+    std::ranges::sort(candidate->sub_virtual, {}, [this](CandidatePtr const& elem){
+      return CandidateType::main == elem->type ? m_property_name : elem->tag;
+    });
+    for(auto const& ptr: candidate->sub_virtual) {
+      switch (ptr->type) {
+        case CandidateType::main:
+        if(tryTag(m_property_name, m_sub_tags)) {
+          auto &property_e = m_sub_tags.emplace_back();
+          property_e.symbol = m_property_name;
+        }
+          break;
+        case CandidateType::sub:
+        addTag(ptr, m_sub_tags);
+          break;
+        default:
+        break;
+      }
     }
     for(auto const& main: candidate->main_children) {
       main_items.push_back(main);
-      candidateUnwrapper(main);
+      ticks += candidateUnwrapper(main, cur_tick + ticks);
     }
+    candidate->next_ticks = cur_tick + ticks;
+    return ticks;
   };
+  int ticks = 0;
   for(auto const& root_cand: root_candidates) {
-    candidateUnwrapper(root_cand);
+    ticks += candidateUnwrapper(root_cand, ticks);
   }
   //
   m_main_items.reserve(main_items.size());
   m_sub_items.reserve(sub_items.size());
   // Collect tags
   int32_t offset_counter = 0;
-  // We're gonna enumerate offsets in {main tag, sub tag, entries} order.
-  auto const addTag = [&offset_counter](CandidatePtr const& source,
-                                        auto &taglist) {
-    if (auto const res = std::ranges::find_if(taglist,
-                                              [&source](auto const &entry) {
-                                                return source->tag ==
-                                                       entry.symbol;
-                                              });
-        res == taglist.end()) {
-      auto const offset = offset_counter++;
-      typename std::remove_reference<decltype(taglist)>::type::value_type entry;
-      entry.offset = offset;
-      entry.symbol = source->tag;
-      taglist.push_back(entry);
+  auto const enumerateTags = [&offset_counter](auto& taglist) {
+    for(auto &tag: taglist) {
+      tag.offset = offset_counter++;
     }
   };
   for (auto const& item : main_items) {
     addTag(item, m_main_tags);
   }
-  decltype(m_sub_tags)::value_type subentry;
-  subentry.offset = offset_counter++;
-  subentry.symbol = m_property_name;
-  m_sub_tags.emplace_back(subentry); // Add property name as our first subtag
-  for (auto const& item : sub_items) {
-    addTag(item, m_sub_tags);
-  }
+  // for (auto const& item : sub_items) {
+  //   addTag(item, m_sub_tags);
+  // }
+  enumerateTags(m_main_tags);
+  enumerateTags(m_sub_tags);
   auto const match_tag = [](auto const &taglist, std::string const &tag,
                             OffsetTaggable *entry) {
     auto const res =
@@ -665,41 +455,53 @@ Result BXR::inject(std::filesystem::path const &openpath) {
     entry->tag_view = res->symbol;
   };
   std::function<void(CandidatePtr const&)> entryUnwrapper;
-  auto const childUnwrapper = [&offset_counter, this, &match_tag](CandidatePtr const& c_ptr) {
-    auto &entry = m_sub_items.emplace_back();
-    match_tag(m_sub_tags, c_ptr->tag, &entry);
-    entry.symbol = c_ptr->value;
-    entry.offset = offset_counter++;
-
-    // Being a sub means that the entry is a child of a previous main entry
+  auto const childUnwrapper = [&offset_counter, this, &match_tag](std::vector<CandidatePtr> const& range) {
     auto &parent = m_main_items.back();
-    if (parent.subscript_children.empty()) {
-      parent.index_sub_item = m_sub_items.size() - 1;
+    for(CandidatePtr const& c_ptr: range) {
+      switch (c_ptr->type) {
+        case CandidateType::main:
+        {
+          if (c_ptr->value.has_value()) {
+            parent.symbol = c_ptr->value.value(); //this should throw
+            parent.offset = offset_counter++;
+          }
+        }
+        break;
+        case CandidateType::sub:
+        {
+          auto &entry = m_sub_items.emplace_back();
+          match_tag(m_sub_tags, c_ptr->tag, &entry);
+          entry.symbol = c_ptr->value.value_or(std::string{""});
+          entry.offset = offset_counter++;
+
+          // Being a sub means that the entry is a child of a previous main entry
+          if (parent.subscript_children.empty()) {
+            parent.index_sub_item = m_sub_items.size() - 1;
+          }
+          parent.subscript_children.push_back(&entry);
+        }
+        break;
+        default:
+        break;
+      }
     }
-    parent.subscript_children.push_back(&entry);
   };
   entryUnwrapper = [&offset_counter, &entryUnwrapper, this, &match_tag, &childUnwrapper](CandidatePtr const& c_ptr) {
     auto &entry = m_main_items.emplace_back();
     match_tag(m_main_tags, c_ptr->tag, &entry);
-    if (!c_ptr->value.empty()) {
-      entry.symbol = c_ptr->value;
-      entry.offset = offset_counter++;
-    }
 
-    entry.power = c_ptr->power;
-    if (!c_ptr->unicode.empty()) {
-      entry.unicode = c_ptr->unicode;
+    entry.next_ticks = c_ptr->next_ticks;
+    if (c_ptr->unicode.has_value()) {
+      entry.unicode = c_ptr->unicode.value();
       entry.offset_unicode = 1;
     }
 
-    if(entry.power) {
-      auto &parent = m_main_items.back();
-      parent.children.push_back(&entry);
-    }
+    // if(!m_main_items.empty()) {
+    //   auto &parent = m_main_items.back();
+    //   parent.children.push_back(&entry);
+    // }
 
-    for(auto const& child: c_ptr->sub_children) {
-      childUnwrapper(child);
-    }
+    childUnwrapper(c_ptr->sub_virtual);
     for(auto const& child: c_ptr->main_children) {
       entryUnwrapper(child);
     }
@@ -719,24 +521,24 @@ Result BXR::inject(std::filesystem::path const &openpath) {
     m_main_items.back().next = -1;
   }
   // Build tag hierarchy
-  {
-    auto iter = m_main_items.begin();
-    while (iter != m_main_items.end()) {
-      if (auto const next = iter + 1; next != m_main_items.end()) {
-        if (next->power < iter->power) {
-          iter->next_ticks = std::distance(m_main_items.begin(), next);
-          ++iter;
-          continue;
-        }
-      }
-      auto const closure = std::find_if(iter + 1, m_main_items.end(),
-                                        [&iter](MainScriptEntry &entry) {
-                                          return entry.power == iter->power;
-                                        });
-      iter->next_ticks = std::distance(m_main_items.begin(), closure);
-      ++iter;
-    }
-  }
+  // {
+  //   auto iter = m_main_items.begin();
+  //   while (iter != m_main_items.end()) {
+  //     if (auto const next = iter + 1; next != m_main_items.end()) {
+  //       if (next->power < iter->power) {
+  //         iter->next_ticks = std::distance(m_main_items.begin(), next);
+  //         ++iter;
+  //         continue;
+  //       }
+  //     }
+  //     auto const closure = std::find_if(iter + 1, m_main_items.end(),
+  //                                       [&iter](MainScriptEntry &entry) {
+  //                                         return entry.power == iter->power;
+  //                                       });
+  //     iter->next_ticks = std::distance(m_main_items.begin(), closure);
+  //     ++iter;
+  //   }
+  // }
   // Enumerate children
   for (auto &item :
        m_main_items | std::views::filter([](MainScriptEntry const &entry) {

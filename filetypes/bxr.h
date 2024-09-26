@@ -1,7 +1,6 @@
 #pragma once
 
 #include <iostream>
-#include <ranges>
 #define BXR_DEBUG_LINKS
 
 #include "filetypes/manageable.h"
@@ -26,6 +25,22 @@
 //3.1 8 bit-wide strings(ANSI)
 //3.2 16 bit-wide strings(Japanese characters)
 
+// Real representation:
+// <texture id="1">
+// 	<h>128</h>
+// 	<src>swg_pro_com_mod_tit_win</src>
+// 	<w>326</w>
+// </texture>
+// Virtual order:
+// <texture>
+// 	<h>128</h>
+// 	<id>1</id>
+// 	<src>swg_pro_com_mod_tit_win</src>
+// 	<w>326</w>
+// </texture>
+// Determines tag order(in tag list) and the order of writing values in string chunk. I.e. in this case param "id" writter after the child "h", so global tag order would be
+//"h|id|src|w" and string values would go in  "128|1|swg_pro_com_mod_tit_win|326" order.
+
 namespace imas {
 namespace file {
 
@@ -36,23 +51,23 @@ public:
     virtual Result extract(const std::filesystem::path& savepath) const override;
     virtual Result inject(const std::filesystem::path& openpath) override;
     void reset();
-    void testCompare(BXR const& another) const {
-      for(auto [left, right]: std::views::zip(m_main_items, another.m_main_items)) {
-        if(left != right) {
-          std::cout << "left.symbol: " << left.symbol << " right.symbol: " << right.symbol << std::endl;
-          std::cout << "left.before: " << left.before << " right.before: " << right.before << std::endl;
-          std::cout << "left.index_sub_item: " << left.index_sub_item << " right.index_sub_item: " << right.index_sub_item << std::endl;
-          std::cout << "left.next: " << left.next << " right.next: " << right.next << std::endl;
-          std::cout << "left.next_ticks: " << left.next_ticks << " right.next_ticks: " << right.next_ticks << std::endl;
-        }
-      }
-      for(auto [left, right]: std::views::zip(m_sub_items, another.m_sub_items)) {
-        if(left != right) {
-          std::cout << "left.symbol: " << left.symbol << " right.symbol: " << right.symbol << std::endl;
-          std::cout << "left.next: " << left.next << " right.next: " << right.next << std::endl;
-        }
-      }
-    }
+    // void testCompare(BXR const& another) const {
+    //   for(auto [left, right]: std::views::zip(m_main_items, another.m_main_items)) {
+    //     if(left != right) {
+    //       std::cout << "left.symbol: " << left.symbol << " right.symbol: " << right.symbol << std::endl;
+    //       std::cout << "left.before: " << left.before << " right.before: " << right.before << std::endl;
+    //       std::cout << "left.index_sub_item: " << left.index_sub_item << " right.index_sub_item: " << right.index_sub_item << std::endl;
+    //       std::cout << "left.next: " << left.next << " right.next: " << right.next << std::endl;
+    //       std::cout << "left.next_ticks: " << left.next_ticks << " right.next_ticks: " << right.next_ticks << std::endl;
+    //     }
+    //   }
+    //   for(auto [left, right]: std::views::zip(m_sub_items, another.m_sub_items)) {
+    //     if(left != right) {
+    //       std::cout << "left.symbol: " << left.symbol << " right.symbol: " << right.symbol << std::endl;
+    //       std::cout << "left.next: " << left.next << " right.next: " << right.next << std::endl;
+    //     }
+    //   }
+    // }
   protected:
     virtual Result openFromStream(std::basic_istream<char> *stream) override;
     virtual Result saveToStream(std::basic_ostream<char> *stream) override;
@@ -103,7 +118,7 @@ public:
         int next_ticks;         //Denotes the element starting the next tag. Aka, all elements between this and 'next_ticks' ones are children of this.
         int offset_unicode = -1;     //Points to the unicode string
         //convenience data
-        int power = 0;              //denoutes the level in the hierarchy. Derived from the 'next_ticks'
+        //int power = 0;              //denoutes the level in the hierarchy. Derived from the 'next_ticks'
         std::u16string unicode;
 #ifdef BXR_DEBUG_LINKS
         MainScriptEntry* parent;
@@ -130,7 +145,8 @@ private:
     std::vector<MainScriptEntry*> m_root;
     std::vector<MainScriptEntry> m_main_items;
     std::vector<SubScriptEntry> m_sub_items;
-    std::string m_property_name = "symbol";
+    std::string m_property_name = "symbol"; //Property is treated as a subchild
+                                            //It's tag added to the list and sorted alphabetically, thus defining order the value srtring are written for the main item
 
     //size calculation
     uint32_t getUnicodeSize() const;

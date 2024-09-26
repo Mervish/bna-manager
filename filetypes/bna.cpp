@@ -247,8 +247,11 @@ const std::map<int, std::string> &BNA::getFolderLibrary() const
   return m_folder_offset_library;
 }
 
-void BNA::extractFile(BNAFileEntry const& file, std::filesystem::path const& out_path){
+imas::file::Result BNA::extractFile(BNAFileEntry const& file, std::filesystem::path const& out_path){
   std::ofstream ostream(out_path, std::ios_base::binary);
+  if(!ostream.is_open()) {
+    return {false, "failed to write the file"};
+  }
   if(file.loaded){
     ostream.write(file.file_data.data(), file.file_data.size());
   } else {
@@ -257,18 +260,20 @@ void BNA::extractFile(BNAFileEntry const& file, std::filesystem::path const& out
     m_read_stream.read(midbuf.data(), file.offsets.file_data.size);
     ostream.write(midbuf.data(), midbuf.size());
   }
+  return {true,""};
 }
 
-void BNA::replaceFile(BNAFileEntry& file, std::filesystem::path const& in_path){
+imas::file::Result BNA::replaceFile(BNAFileEntry& file, std::filesystem::path const& in_path){
   std::ifstream ifstream(in_path, std::ios_base::binary);
   if(!ifstream.is_open()){
-    return;
+    return {false, "failed to open the file"};
   }
   //get file size
   auto const size = std::filesystem::file_size(in_path);
   file.file_data.resize(size);
   ifstream.read(file.file_data.data(), size);
   file.loaded = true;
+  return {true,""};
 }
 
 //Call after sorting
@@ -279,14 +284,14 @@ void BNA::replaceFile(BNAFileEntry& file, std::filesystem::path const& in_path){
   }
 }*/
 
-void BNA::extractFile(BNAFileSignature const& signature, std::filesystem::path const& out_path)
+Result BNA::extractFile(BNAFileSignature const& signature, std::filesystem::path const& out_path)
 {
-  extractFile(getFile(signature), out_path);
+  return extractFile(getFile(signature), out_path);
 }
 
-void BNA::replaceFile(BNAFileSignature const& signature, std::string const& in_path)
+Result BNA::replaceFile(BNAFileSignature const& signature, const std::filesystem::path& in_path)
 {
-  replaceFile(getFile(signature), in_path);
+  return replaceFile(getFile(signature), in_path);
 }
 
 BNAFileEntry& BNA::getFile(BNAFileSignature const& signature)

@@ -1,4 +1,5 @@
 
+#include <format>
 #include <iostream>
 
 #include "filetypes/bna.h"
@@ -14,6 +15,11 @@
 
 // check if the patch folder exists
 #define CHECK_PATCH_FOLDER(patch_folder) \
+if (!std::filesystem::exists(patch_folder)) { \
+  return {false, "Patch folder does not exist."}; \
+}
+
+#define CREATE_PATCH_FOLDER(patch_folder) \
 if (!std::filesystem::exists(patch_folder)) { \
   return {false, "Patch folder does not exist."}; \
 }
@@ -49,10 +55,12 @@ if(auto const ret = func; ret.first) { \
 }
 
 constexpr auto help = "Idolm@ster patching tool.\n"
-"Usage: imaspatcher <command> <game folder> <script file> <patch folder> <output script>\n"
+"Usage: imaspatcher <command> <game folder> <patch folder> <script file> <output script>\n"
 "Commands:\n"
 "  extract - exports game files to the patch folder\n"
 "  patch - patches game files with the files from the patch folder\n"
+"  unpack - unpacks game files 'as is', without conversion\n"
+"  replace - replaces files without conversion\n"
 "  validate - validate and clean the script file from unused entries\n";
 
 template <class T>
@@ -67,18 +75,58 @@ void makeDirs(std::filesystem::path const& path) {
   }
 }
 
-imas::file::Result extract(std::filesystem::path const& game_folder, std::filesystem::path const& script_file,
-                                     std::filesystem::path const& patch_folder) {
+struct TaskData {
+  std::filesystem::path game;
+  std::filesystem::path patch;
+  std::filesystem::path script;
+  std::filesystem::path out_script;
+};
+
+imas::file::Result iterateBNA(TaskData const& task,
+                              std::string const& print,
+                              auto &&pred) {
+  imas::file::OperationScenario scenario;
+  if (auto const res = scenario.fromFile(task.script); !res.first) {
+    return res;
+  }
+  for (auto const &entry : scenario.entries) {
+    std::cout << "Working with archive " << entry.path.string() << ":\n";
+    auto const original_path = task.game / entry.path;
+    imas::file::BNA bna;
+    PRINT_ERROR_AND_CONTINUE(bna.loadFromFile(original_path))
+    auto const &file_data = bna.getFileData();
+    for (auto const &subentry : entry.files) {
+      auto const it = std::ranges::find_if(file_data,
+                                   [subentry](auto const &file) {
+                                     return subentry == file.getFullPath();
+                                   });
+      if (it == file_data.end()) {
+        std::cout << std::format("Failed to find BNA entry {}", subentry.string());
+        continue;
+      }
+      auto const signature = it->getSignature();
+      auto final_path = task.patch / subentry;
+      if(auto const res = pred(subentry, bna, signature, final_path); res.first) {
+        std::cout << print << final_path << '\n';
+      }else{
+        std::cout << MAKE_ERROR(res.second);
+      }
+    }
+  }
+  return {true, ""};
+}
+
+imas::file::Result extract(TaskData const& task) {
   // create the patch folder if it doesn't exist
-  if (!std::filesystem::exists(patch_folder)) {
-    std::filesystem::create_directories(patch_folder);
+  if (!std::filesystem::exists(task.patch)) {
+    std::filesystem::create_directories(task.patch);
   }
   imas::file::OperationScenario scenario;
-  if(auto const res = scenario.fromFile(script_file); !res.first) {
+  if(auto const res = scenario.fromFile(task.script); !res.first) {
     return res;
   }
   for(auto const& entry: scenario.entries) {
-    auto const original_path = game_folder / entry.path;
+    auto const original_path = task.game / entry.path;
     imas::file::BNA bna;
     PRINT_ERROR_AND_CONTINUE(bna.loadFromFile(original_path))
     auto const& file_data = bna.getFileData();
@@ -92,7 +140,7 @@ imas::file::Result extract(std::filesystem::path const& game_folder, std::filesy
       auto const signature = it->getSignature();
       auto file = bna.getFile(signature);
       auto const ext_type = imas::filetype::getFileType(subentry);
-      auto final_path = patch_folder / subentry;
+      auto final_path = task.patch / subentry;
       switch (ext_type) {
         case imas::filetype::type::bxr:
         {
@@ -132,17 +180,44 @@ imas::file::Result extract(std::filesystem::path const& game_folder, std::filesy
   return {true, {"Data extracted."}};
 }
 
-imas::file::Result patch(std::filesystem::path const& game_folder, std::filesystem::path const& script_file,
-                                   std::filesystem::path const& patch_folder) {
-  CHECK_PATCH_FOLDER(patch_folder)
-  std::cout << "Patching folder at: " << game_folder.string() << '\n';
+imas::file::Result unpack(TaskData const& task) {
+  // create the patch folder if it doesn't exist
+  if (!std::filesystem::exists(task.patch)) {
+    std::filesystem::create_directories(task.patch);
+  }
+  auto const res = iterateBNA(task, "\tExtracted ",
+      [](std::filesystem::path const &subentry,
+                      imas::file::BNA &bna,
+                      imas::file::BNAFileSignature const &signature,
+                      std::filesystem::path &final_path) {
+        std::filesystem::create_directories(final_path.parent_path());
+        return bna.extractFile(signature, final_path);
+      });
+  return res.first ? imas::file::Result{true, {"Files extracted."}} : res;
+}
+
+imas::file::Result replace(TaskData const& task) {
+  CHECK_PATCH_FOLDER(task.patch)
+  auto const res = iterateBNA(task, "\tReplaced ",
+      [](std::filesystem::path const &subentry,
+                      imas::file::BNA &bna,
+                      imas::file::BNAFileSignature const &signature,
+                      std::filesystem::path &final_path) {
+        return bna.replaceFile(signature, final_path);
+      });
+  return res.first ? imas::file::Result{true, {"Files replaced."}} : res;
+}
+
+imas::file::Result patch(TaskData const& task) {
+  CHECK_PATCH_FOLDER(task.patch)
+  std::cout << "Patching folder at: " << task.game.string() << '\n';
   imas::file::OperationScenario scenario;
-  if(auto const res = scenario.fromFile(script_file); !res.first) {
+  if(auto const res = scenario.fromFile(task.script); !res.first) {
     return res;
   }
   for(auto const& entry: scenario.entries) {
     std::cout << "Working with archive " << entry.path.string() << ":\n";
-    auto const original_path = game_folder / entry.path;
+    auto const original_path = task.game / entry.path;
     imas::file::BNA bna;
     if(auto const ret = bna.loadFromFile(original_path); !ret.first) {
       std::cout << ret.second;
@@ -162,7 +237,7 @@ imas::file::Result patch(std::filesystem::path const& game_folder, std::filesyst
       auto const signature = it->getSignature();
       auto &file = bna.getFile(signature);
       auto const ext_type = imas::filetype::getFileType(subentry);
-      auto final_path = patch_folder / subentry;
+      auto final_path = task.patch / subentry;
       switch (ext_type) {
         case imas::filetype::type::bxr:
         {
@@ -211,17 +286,16 @@ imas::file::Result patch(std::filesystem::path const& game_folder, std::filesyst
 }
 
 
-imas::file::Result validate(std::filesystem::path const& game_folder, std::filesystem::path const& script_file,
-                            std::filesystem::path const& patch_folder, std::filesystem::path const& output_script) {
-  CHECK_PATCH_FOLDER(patch_folder)
+imas::file::Result validate(TaskData const& task) {
+  CHECK_PATCH_FOLDER(task.patch)
   imas::file::OperationScenario scenario;
   imas::file::OperationScenario output_scenario;
-  if(auto const res = scenario.fromFile(script_file); !res.first) {
+  if(auto const res = scenario.fromFile(task.script); !res.first) {
     return res;
   }
   for(auto const& entry: scenario.entries) {
     imas::file::OperationEntry candidate{.path = entry.path};
-    auto const original_path = game_folder / entry.path;
+    auto const original_path = task.game / entry.path;
     imas::file::BNA bna;
     CONT_ON_ERROR(bna.loadFromFile(original_path))
     //STOP_ON_ERROR_RET(bna.loadFromFile(original_path))
@@ -236,7 +310,7 @@ imas::file::Result validate(std::filesystem::path const& game_folder, std::files
       auto const signature = it->getSignature();
       auto &file = bna.getFile(signature);
       auto const ext_type = imas::filetype::getFileType(subentry);
-      auto final_path = patch_folder / subentry;
+      auto final_path = task.patch / subentry;
       switch (ext_type) {
         case imas::filetype::type::bxr:
         {
@@ -274,10 +348,10 @@ imas::file::Result validate(std::filesystem::path const& game_folder, std::files
   }
   if(!output_scenario.entries.empty()) {
     auto const value = output_scenario.toJSON();
-    std::ofstream out{output_script};
+    std::ofstream out{task.out_script};
     out << value;
     out.close();
-    return {true, {"Script validated. New script created at " + output_script.string()}};
+    return {true, {"Script validated. New script created at " + task.out_script.string()}};
   }
   return {false, {"Script validated. No changes."}};
 }
@@ -285,28 +359,39 @@ imas::file::Result validate(std::filesystem::path const& game_folder, std::files
 
 int main(int argc, char const *argv[])
 {
-    if (argc < 4) {
+    if (argc < 5) {
         std::cout << help;
         std::string answer;
         std::getline(std::cin, answer);
         return 0;
     }
+    TaskData task;
+    task.game = argv[2];
+    task.script = argv[3];
+    task.patch = argv[4];
+
     //check if directory exists
-    if (!std::filesystem::is_directory(argv[2])) {
-        std::cout << "Directory " << argv[2] << " does not exist\n";
+    if (!std::filesystem::is_directory(task.game)) {
+        std::cout << "Directory " << task.game << " does not exist\n";
         return 1;
     }
     //check if script exists
-    if (!std::filesystem::exists(argv[3])) {
-        std::cout << "Script file " << argv[3] << " does not exist\n";
+    if (!std::filesystem::exists(task.script)) {
+        std::cout << "Script file " << task.script << " does not exist\n";
         return 1;
     }
     switch (argv[1][0]) {
         case 'e': {
-            return printResult(extract(argv[2], argv[3], argv[4]));
+            return printResult(extract(task));
         }
         case 'p': {
-            return printResult(patch(argv[2], argv[3], argv[4]));
+            return printResult(patch(task));
+        }
+        case 'u': {
+            return printResult(unpack(task));
+        }
+        case 'r': {
+            return printResult(replace(task));
         }
         case 'v': {
             if(argc < 6) {
@@ -314,7 +399,8 @@ int main(int argc, char const *argv[])
                 std::cout << help;
                 return 1;
             }
-            return printResult(validate(argv[2], argv[3], argv[4], argv[5]));
+            task.out_script = argv[5];
+            return printResult(validate(task));
         }
         default: {
             std::cout << help;

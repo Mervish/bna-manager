@@ -63,7 +63,7 @@ boost::json::value OperationEntry::toJSON() const {
 
 Result OperationScenario::fromJSON(const boost::json::value& json) {
   if(!json.is_object()) {
-    return {false, "Invalid script-file structure."};
+    return {false, "invalid script-file structure"};
   }
   auto const& json_obj = json.as_object();
 
@@ -82,7 +82,7 @@ Result OperationScenario::fromJSON(const boost::json::value& json) {
     auto const& loose_json = json_obj.at(loose_literal).as_array();
     for (auto const& entry : loose_json) {
       if (!entry.is_string()) {
-        return {false, "Invalid field type for 'loose'."};
+        return {false, "invalid field type for 'loose'"};
       }
       loose.emplace_back(entry.as_string().c_str());
     }
@@ -93,7 +93,7 @@ Result OperationScenario::fromJSON(const boost::json::value& json) {
 Result OperationScenario::fromFile(std::filesystem::path const& filepath) {
   std::ifstream stream(filepath);
   if (!stream.is_open()) {
-    return {false, "Failed to open file."};
+    return {false, "failed to open file"};
   }
   boost::json::error_code ec;
   boost::json::parse_options options;
@@ -103,7 +103,7 @@ Result OperationScenario::fromFile(std::filesystem::path const& filepath) {
   //options.max_depth;
   boost::json::value value = boost::json::parse(stream, ec, {}, options);
   if (ec) {
-    return {false, "Failed to parse file: " + std::string(ec.message())};
+    return {false, "failed to parse file: " + std::string(ec.message())};
   }
   return OperationScenario::fromJSON(value);
 }

@@ -44,10 +44,10 @@ public:
   void saveToFile(std::filesystem::path const& filepath);
   bool loadFromDir(std::filesystem::path const& dirpath);
   void extractAllToDir(std::filesystem::path const& dirpath);
-  void extractFile(BNAFileSignature const& signature,
+  Result extractFile(BNAFileSignature const& signature,
                    std::filesystem::path const& out_path);
-  void replaceFile(BNAFileSignature const& signature,
-                   std::string const& in_path);
+  Result replaceFile(BNAFileSignature const& signature,
+                   std::filesystem::path const& in_path);
   //
   BNAFileEntry& getFile(const BNAFileSignature& signature);
   const std::vector<BNAFileEntry>& getFileData() const;
@@ -61,9 +61,9 @@ private:
   void fetchFile(BNAFileEntry& file);
   void fetchAll();
   void sortFileData();
-  void extractFile(const BNAFileEntry& file_data,
+  Result extractFile(const BNAFileEntry& file_data,
                    std::filesystem::path const& out_path);
-  void replaceFile(BNAFileEntry& file, std::filesystem::path const& in_path);
+  Result replaceFile(BNAFileEntry& file, std::filesystem::path const& in_path);
   //void generateFolderLibrary();
 
   // data
