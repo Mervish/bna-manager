@@ -85,10 +85,11 @@ std::vector<imas::file::BXR::MainScriptEntry*> makeChildrenHierarchy(R const& ra
 };
 
 bool tryTag(std::string const &tag, auto &taglist) {
-  return std::ranges::find_if(taglist, [&tag](auto const &entry) {
-           return tag == entry.symbol;
+  return std::ranges::find(taglist, tag, [](auto const &entry) {
+           return entry.symbol;
          }) == taglist.end();
 };
+
 void addTag(CandidatePtr const& source,
                                       auto &taglist) {
   if (tryTag(source->tag, taglist)) {
@@ -448,9 +449,7 @@ Result BXR::inject(std::filesystem::path const &openpath) {
   auto const match_tag = [](auto const &taglist, std::string const &tag,
                             OffsetTaggable *entry) {
     auto const res =
-        std::ranges::find_if(taglist, [&tag](Offsetable const &entry) {
-          return tag == entry.symbol;
-        });
+        std::ranges::find(taglist, tag, &Offsetable::symbol);
     entry->data_tag = std::distance(taglist.begin(), res);
     entry->tag_view = res->symbol;
   };

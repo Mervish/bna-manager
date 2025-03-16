@@ -71,9 +71,7 @@ Result SCB::openFromStream(std::basic_istream<char> *stream) {
     section->offset = imas::utility::readLong(stream);
     stream->ignore(4);
   }
-  std::ranges::sort(m_sections_agg, [](ScbSection *left, ScbSection *right) {
-    return left->offset < right->offset;
-  });
+  std::ranges::sort(m_sections_agg, std::ranges::less{}, &ScbSection::offset);
   for (auto section : m_sections_agg) {
     stream->seekg(section->offset);
     section->data.resize(section->size);

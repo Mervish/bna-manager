@@ -33,8 +33,6 @@ std::optional<QStandardItem*> contains(QStandardItem *item, QString const& strin
   }
   return {};
 }
-
-static QString const fileMimeType() { return QStringLiteral("file"); }
 }
 
 MainWindow::MainWindow(QWidget *parent)
@@ -50,10 +48,14 @@ MainWindow::MainWindow(QWidget *parent)
   registerManager<imas::file::BXR>();
   registerManager<imas::file::NUT>();
 
+  m_filter_model.setFilterKeyColumn(0);
+  m_filter_model.setFilterRole(Qt::DisplayRole);
+
   ui->setupUi(this);
   setAcceptDrops(true);
   ui->folderTreeView->setModel(&m_folder_tree_model);
-  ui->fileTableView->setModel(&m_file_table_model);
+  m_filter_model.setSourceModel(&m_file_table_model);
+  ui->fileTableView->setModel(&m_filter_model);
   ui->fileTableView->setFiletypesManagers(&m_filetypes_managers);
   ui->consoleView->setReadOnly(true);
 
@@ -162,6 +164,9 @@ MainWindow::MainWindow(QWidget *parent)
     if(!m_path_saver.interrogate(m_open_file_dialog)){      return;    }
     bna.replaceFile({m_file_table_model.currentDir().toStdString(), filename.toStdString()}, m_open_file_dialog.selectedFiles().first().toStdString());
     m_logger->info(QString("Replaced file: %1").arg(filename));
+  });
+  connect(ui->searchbox, &QLineEdit::textEdited, [this](auto const& text) {
+    m_filter_model.setFilterFixedString(text);
   });
 
   //manager dependand actions

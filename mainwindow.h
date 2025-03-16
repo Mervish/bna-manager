@@ -10,6 +10,7 @@
 
 #include <QFileDialog>
 #include <QMainWindow>
+#include <QSortFilterProxyModel>
 #include <QStandardItemModel>
 
 QT_BEGIN_NAMESPACE
@@ -72,6 +73,7 @@ private:
   //Models
   QStandardItemModel m_folder_tree_model;
   imas::model::FileTableModel m_file_table_model;
+  QSortFilterProxyModel m_filter_model;
   //filetype manager
   template<class T>
   void registerManager();

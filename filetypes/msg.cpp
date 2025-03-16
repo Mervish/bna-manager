@@ -33,30 +33,6 @@ std::vector<std::basic_string_view<CharT>> split(std::basic_string_view<CharT> s
   result.push_back(str.substr(start));
   return result;
 }
-
-// find '\n' and replace them with "\n"
-std::u16string convertNewlineCommand(std::u16string const &str) {
-  std::u16string result;
-  for (auto it = str.begin(); it != str.end(); ++it) {
-    if (*it == newline_literal) {
-      result += newline_string;
-    } else {
-      result += *it;
-    }
-  }
-  return result;
-}
-
-// find "\n" and replace them with '\n'
-std::u16string restoreNewlineCommand(std::u16string const &str) {
-  std::u16string result(str);
-  std::size_t found = result.find(newline_string);
-  while (found != std::u16string::npos) {
-    result.replace(found, 2, std::u16string(newline_string_literal));
-    found = result.find(newline_string, 1);
-  }
-  return result;
-}
 } // namespace
 
 namespace imas {
@@ -186,42 +162,42 @@ Result MSG::openFromStream(std::basic_istream<char> *stream) {
   return {true, ""};
 }
 
-Result MSG::saveToStream(std::basic_ostream<char> *stream) {
+Result MSG::saveToStream(std::basic_ostream<char>* stream) {
   // Let's fill header
   stream->write("MSG", 3);
   utility::padStream(stream, 0, 12);
   stream->put(0x45);
   utility::padStream(stream, 0, 16);
   // Write string count
-  utility::writeShort(stream, m_entries.size()); // string count
+  utility::writeFromValue(stream, m_entries.size()); // string count
   utility::writeFromValue(stream, m_flags);
   int16_t const str_size = stringsSize();
-  utility::writeShort(stream, str_size); // string data size
-  utility::writeShort(stream,
+  utility::writeFromValue(stream, str_size); // string data size
+  utility::writeFromValue(stream,
                       0x10); // idk what this does, seems to be always 0x10
   int16_t const header_size = headerSize();
-  utility::writeShort(stream, header_size); // header size
+  utility::writeFromValue(stream, header_size); // header size
   utility::padStream(stream, 0, 4);
   int32_t text_offset = 0;
   for (auto const &string : m_entries) {
     int32_t const str_size = (string.data.size() + 1) * 2;
-    utility::writeLong(stream, str_size);
-    utility::writeLong(stream, text_offset);
+    utility::writeFromValue(stream, str_size);
+    utility::writeFromValue(stream, text_offset);
     text_offset += str_size;
   }
   utility::evenWriteStream(stream, padding_literal);
   for (auto const &string : m_entries) {
     for (auto const &wide : string.data) {
-      utility::writeShort(stream, wide);
+      utility::writeFromValue(stream, wide);
     }
     // Add terminating character to the string
-    utility::writeShort(stream, wchar_t('\0'));
+    utility::writeFromValue(stream, wchar_t('\0'));
   }
   // Finalizing
   utility::evenWriteStream(stream, padding_literal);
   int32_t const size = int32_t(stream->tellp()) - 32;
   stream->seekp(offset_data_size);
-  utility::writeLong(stream, size);
+  utility::writeFromValue(stream, size);
   return {true, ""};
 }
 

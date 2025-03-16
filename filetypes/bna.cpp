@@ -74,13 +74,13 @@ namespace adaptor = boost::adaptors;
 namespace imas {
 namespace file {
 
-void BNA::sortFileData()
-{
-  std::ranges::sort(m_file_data, [](BNAFileEntry const& left, BNAFileEntry const& right){
-      return left.dir_name == right.dir_name ?
-                 isBNAFileOrder(left.file_name, right.file_name) :
-                 isBNASubfolder(left.dir_name, right.dir_name);
-  });
+void BNA::sortFileData() {
+  std::ranges::sort(
+      m_file_data, [](BNAFileEntry const &left, BNAFileEntry const &right) {
+        return left.dir_name == right.dir_name
+                   ? isBNAFileOrder(left.file_name, right.file_name)
+                   : isBNASubfolder(left.dir_name, right.dir_name);
+      });
 }
 
 Result BNA::loadFromFile(std::filesystem::path const& filepath)
@@ -296,8 +296,8 @@ Result BNA::replaceFile(BNAFileSignature const& signature, const std::filesystem
 
 BNAFileEntry& BNA::getFile(BNAFileSignature const& signature)
 {
-  auto const off_it = std::ranges::find_if(m_folder_offset_library, [folder = signature.path](auto const& pair){
-    return folder == pair.second;
+  auto const off_it = std::ranges::find(m_folder_offset_library, signature.path, [](auto const& pair){
+    return pair.second;
   });
   //Q_ASSERT(off_it != m_folder_offset_library.end());
   auto const file_it = std::ranges::find_if(m_file_data, [&signature, offset = off_it->first](auto const& file){
