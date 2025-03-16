@@ -17,7 +17,7 @@ find_package(Qt${QT_VERSION_MAJOR} COMPONENTS Widgets REQUIRED)
 set(Boost_USE_STATIC_LIBS ON)
 find_package(Boost REQUIRED json)
 
-add_subdirectory(OpenXLSX)
+add_subdirectory(thirdparty/OpenXLSX/OpenXLSX)
 
 set(SCB_FILES
     filetypes/scb.cpp

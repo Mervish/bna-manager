@@ -71,7 +71,7 @@ Manageable::Fileapi MSG::api() const {
 
 Result MSG::extract(std::filesystem::path const &filepath) const {
   OpenXLSX::XLDocument doc;
-  doc.create(filepath.string());
+  doc.create(filepath.string(), true);
 
   auto wks = doc.workbook().worksheet("Sheet1");
 

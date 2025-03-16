@@ -11,7 +11,7 @@
 #include <optional>
 #endif
 
-#include <OpenXLSX/external/pugixml/pugixml.hpp>
+#include <thirdparty/OpenXLSX/OpenXLSX/external/pugixml/pugixml.hpp>
 
 //*********.bxr
 //1. Label("BXR0")

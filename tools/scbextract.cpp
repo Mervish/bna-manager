@@ -17,7 +17,9 @@ bool rewriteCheck(std::filesystem::path const& filepath) {
 int main(int argc, char *argv[])
 {
     if(argc < 2) {
-        std::cout << "Usage: " << argv[0] << " <*.scb/*.csv>" << std::endl;
+        std::cout << "Usage: " << argv[0] << " <*.scb/*.xlsx>" << std::endl;
+        std::string answer;
+        std::getline(std::cin, answer);
         return 1;
     }
 
@@ -27,13 +29,13 @@ int main(int argc, char *argv[])
       payload = std::filesystem::path(argv[2]);
     }
 
-    //we can accept only .scb or .csv files
+    //we can accept only .scb or .xlsx files
     if(!std::filesystem::is_regular_file(path)) {
             std::cout << path << " is not a file."  << std::endl;
     }
     auto const extension = path.extension();
-    if(extension != ".scb" && extension != ".csv") {
-        std::cout << path << " is not a SCB or CSV file." << std::endl;
+    if(extension != ".scb" && extension != ".xlsx") {
+        std::cout << path << " is not a SCB or XLSX file." << std::endl;
         return 1;
     }
 
@@ -41,7 +43,7 @@ int main(int argc, char *argv[])
     if(extension == ".scb") {
         scb.loadFromFile(path);
         // scb.extractSections(path);
-        path.replace_extension(".csv");
+        path.replace_extension(".xlsx");
         if (rewriteCheck(path)) {
             scb.extract(path);
             std::cout << "Saved to " << path << std::endl;
